@@ -1,0 +1,40 @@
+name: Push clock to Tidbyt
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: push-clock
+  cancel-in-progress: true
+
+jobs:
+  push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pixlet
+        run: curl -sL https://github.com/tidbyt/pixlet/releases/download/v0.34.0/pixlet_0.34.0_linux_amd64.tar.gz | tar xz
+
+      - name: Render next 30 minutes of frames
+        run: ./pixlet render clock.star frames=1800 -o clock.webp
+
+      - name: Push to Tidbyt
+        run: |
+          ./pixlet push \
+            --api-token "${{ secrets.TIDBYT_API_TOKEN }}" \
+            --installation-id clock \
+            "${{ secrets.TIDBYT_DEVICE_ID }}" clock.webp
+
+      # GitHub disables scheduled workflows after 60 days without repo
+      # activity; hitting the enable endpoint resets that clock.
+      - name: Keepalive
+        run: gh api -X PUT "repos/${GITHUB_REPOSITORY}/actions/workflows/push-clock.yml/enable"
+        env:
+          GH_TOKEN: ${{ github.token }}

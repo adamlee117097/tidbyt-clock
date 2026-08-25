@@ -1,3 +1,4 @@
-clock.webp
+*.webp
 *.gif
-!preview.gif
+!clock/preview.gif
+!weather/preview.gif

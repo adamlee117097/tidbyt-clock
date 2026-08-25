@@ -7,6 +7,9 @@ its first frame, so coverage > push interval gives slack for missed runs.
 
 Config params (pixlet render clock.star key=value):
   frames  - seconds of animation to render (default 150)
+  offset  - seconds to lead real time by (default 0); set to the measured
+            render->push->display pipeline latency so frame 0 shows the
+            time it will actually be when the device starts playing it
   $tz     - IANA timezone (default America/New_York)
 """
 
@@ -84,8 +87,9 @@ def clock_frame(t):
 def main(config):
     tz = config.get("$tz") or DEFAULT_TZ
     n_frames = int(config.get("frames") or DEFAULT_FRAMES)
-    now = time.now().in_location(tz)
+    offset = int(config.get("offset") or 0)
     one_second = time.parse_duration("1s")
+    now = time.now().in_location(tz) + offset * one_second
 
     return render.Root(
         delay = 1000,

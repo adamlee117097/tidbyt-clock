@@ -23,7 +23,7 @@ jobs:
         run: curl -sL https://github.com/tidbyt/pixlet/releases/download/v0.34.0/pixlet_0.34.0_linux_amd64.tar.gz | tar xz
 
       - name: Render next 30 minutes of frames
-        run: ./pixlet render clock.star frames=1800 -o clock.webp
+        run: ./pixlet render clock.star frames=1800 offset=6 -o clock.webp
 
       - name: Push to Tidbyt
         run: |

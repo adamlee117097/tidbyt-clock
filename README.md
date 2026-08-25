@@ -4,6 +4,8 @@ Custom clock face for a Tidbyt (64×32 LED matrix): gold digits, blinking
 colon, amber date line, seconds bar. Runs standalone — no home machine
 involved.
 
+![Clock preview](preview.gif)
+
 ## How it works
 
 A Tidbyt shows whatever WebP it was last pushed, so a clock has to keep
@@ -17,12 +19,27 @@ rotation each turn would restart the animation at frame 0.
 If pushes stop for more than ~30 minutes, the display loops back to the
 start of its last animation (time appears to rewind) until the next push.
 
-## Setup
+## Run it on your own Tidbyt
 
-Repo secrets (Settings → Secrets and variables → Actions):
+The official Tidbyt community catalog stopped accepting new apps after the
+Modal acquisition, so this ships as a self-serve repo instead:
 
-- `TIDBYT_DEVICE_ID` — Tidbyt app → device → settings → Get API key
-- `TIDBYT_API_TOKEN` — same screen
+1. **Fork this repo** (keep it public — the free private-repo Actions quota
+   won't cover ~144 runs/day).
+2. Add repo secrets (Settings → Secrets and variables → Actions):
+   - `TIDBYT_DEVICE_ID` — Tidbyt app → device → settings → Get API key
+   - `TIDBYT_API_TOKEN` — same screen
+3. Enable the workflow on the Actions tab (forks start with workflows
+   disabled) and trigger **Push clock to Tidbyt** once via *Run workflow*.
+4. In the Tidbyt mobile app, **pin** the new `clock` installation so the
+   animation plays continuously.
+
+To change the timezone, edit the `DEFAULT_TZ` in `clock.star` or pass
+`$tz` in the render step of the workflow.
+
+If you run a [Tronbyt](https://github.com/tronbyt) (self-hosted firmware)
+instead, you don't need any of the push machinery — just drop `clock.star`
+into your server's apps folder.
 
 ## Local development
 

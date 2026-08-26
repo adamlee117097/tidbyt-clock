@@ -26,11 +26,12 @@ CACHE_TTL_SECONDS = 600
 ANIMATION_SPEED = 100  # ms per frame
 TZ = "America/New_York"
 BREAKING_SECS = 3600
+MAX_AGE_DAYS = 3
 
 GP_GREEN = "#1E7A33"
 GOLD = "#FFB000"
 WHITE = "#FFFFFF"
-STORY = "#9AA0A6"
+STORY = "#B8BEC6"
 BREAKING = "#FFE100"
 HAIRLINE = "#3A3A3A"
 HEADER_H = 6
@@ -152,8 +153,10 @@ def get_articles():
                 "accent": feed["accent"],
                 "ts": parsed.unix if parsed else 0,
             })
+    cutoff = time.now().unix - MAX_AGE_DAYS * 86400
+    items = [it for it in items if it["ts"] == 0 or it["ts"] >= cutoff]
     if not items:
-        return [{"title": "Greenpoint feeds unavailable", "description": "", "meta": "", "accent": STORY, "ts": 0}]
+        return [{"title": "No Greenpoint news in the last %d days" % MAX_AGE_DAYS, "description": "", "meta": "", "accent": STORY, "ts": 0}]
     return sorted(items, key = lambda a: a["ts"], reverse = True)
 
 def render_header():
@@ -192,12 +195,13 @@ def render_articles(articles, breaking_lead):
             font = "tom-thumb",
         ))
         if article["description"]:
-            elements.append(render.Box(height = 1))
+            elements.append(render.Box(height = 2))
             elements.append(render.WrappedText(
                 content = article["description"],
                 width = 64,
                 color = STORY,
-                font = "CG-pixel-3x5-mono",
+                font = "tom-thumb",
+                linespacing = 1,
             ))
         if article["meta"]:
             elements.append(render.Box(height = 1))

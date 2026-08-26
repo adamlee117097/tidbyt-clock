@@ -85,13 +85,35 @@ def strip_html(s):
         out = out[:i]
     return " ".join(out.split())
 
-def summarize(s):
-    """First sentence (past a minimum length), else a word-boundary cut."""
-    if len(s) <= 55:
-        return s
-    for i in range(20, min(len(s) - 1, 70)):
+def words_of(s):
+    out = []
+    cur = ""
+    for ch in s.lower().elems():
+        if ch.isalnum():
+            cur += ch
+        else:
+            if len(cur) > 3:
+                out.append(cur)
+            cur = ""
+    if len(cur) > 3:
+        out.append(cur)
+    return out
+
+def sentences_of(s):
+    sents = []
+    start = 0
+    n = len(s)
+    for i in range(n - 1):
         if s[i] in (".", "!", "?") and s[i + 1] == " ":
-            return s[:i + 1]
+            sents.append(s[start:i + 1])
+            start = i + 2
+    if start < n:
+        sents.append(s[start:])
+    return sents
+
+def shorten(s):
+    if len(s) <= 70:
+        return s
     # always cut at a word boundary — byte slicing mid-word can split a
     # multibyte character into a garbage glyph
     cut = s[:70]
@@ -99,6 +121,25 @@ def summarize(s):
     if last_space > 20:
         cut = cut[:last_space]
     return cut + "..."
+
+def pick_summary(title, desc):
+    """First sentence that ADDS information: skip sentences that mostly
+    restate the headline; return "" when the blurb is pure echo."""
+    twords = words_of(title)
+    for sent in sentences_of(desc)[:4]:
+        sent = sent.strip()
+        if len(sent) < 20:
+            continue
+        swords = words_of(sent)
+        if not swords:
+            continue
+        dup = 0
+        for w in swords:
+            if w in twords:
+                dup += 1
+        if dup * 2 < len(swords):
+            return shorten(sent)
+    return ""
 
 def parse_pub(pub):
     """RFC-2822 date, defensively: time.parse_time ERRORS on mismatch
@@ -146,9 +187,10 @@ def get_articles():
             if title == None:
                 continue
             parsed = parse_pub(pub or "")
+            clean_title = strip_html(title)
             items.append({
-                "title": strip_html(title),
-                "description": summarize(strip_html(description or "")),
+                "title": clean_title,
+                "description": pick_summary(clean_title, strip_html(description or "")),
                 "meta": feed["tag"] + " - " + ago(parsed) if parsed else feed["tag"],
                 "accent": feed["accent"],
                 "ts": parsed.unix if parsed else 0,

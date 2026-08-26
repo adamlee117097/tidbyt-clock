@@ -150,7 +150,7 @@ def render_articles(articles):
             content = article["title"],
             width = 64,
             color = HEADLINE,
-            font = "tb-8",
+            font = "tom-thumb",
         ))
         if article["description"]:
             elements.append(render.Box(height = 1))
@@ -158,14 +158,14 @@ def render_articles(articles):
                 content = article["description"],
                 width = 64,
                 color = STORY,
-                font = "tom-thumb",
+                font = "CG-pixel-3x5-mono",
             ))
         if article["meta"]:
             elements.append(render.Box(height = 1))
             elements.append(render.Text(
                 content = article["meta"],
                 color = ACCENT_GOLD,
-                font = "tom-thumb",
+                font = "CG-pixel-3x5-mono",
             ))
         elements.append(render.Box(height = 2))
         elements.append(render.Box(width = 64, height = 1, color = "#0C3315"))
@@ -175,11 +175,11 @@ def render_articles(articles):
 def main(config):
     articles = get_articles()
 
-    # two stories fit a full scroll under pixlet's frame cap; rotate the
-    # visible pair each 10-minute push so all stories get airtime
-    if len(articles) > 2:
+    # three stories fit a full scroll under pixlet frame cap (smaller fonts); rotate the
+    # visible trio each 10-minute push so all stories get airtime
+    if len(articles) > 3:
         start = time.now().in_location(TZ).minute // 10 % len(articles)
-        articles = [articles[start], articles[(start + 1) % len(articles)]]
+        articles = [articles[(start + i) % len(articles)] for i in range(3)]
 
     return render.Root(
         delay = ANIMATION_SPEED,

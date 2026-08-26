@@ -1,4 +1,4 @@
-name: Push WNYC news to Tidbyt
+name: Push Greenpoint news to Tidbyt
 
 on:
   schedule:
@@ -23,24 +23,34 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install pixlet
-        run: curl -sL https://github.com/tidbyt/pixlet/releases/download/v0.34.0/pixlet_0.34.0_linux_amd64.tar.gz | tar xz
-
-      - name: Render and push every 10 minutes
-        run: |
-          for i in $(seq 1 33); do
-            ./pixlet render news/greenpoint_news.star -o news.webp
-            ./pixlet push \
-              --api-token "${{ secrets.TIDBYT_API_TOKEN }}" \
-              --installation-id news \
-              "${{ secrets.TIDBYT_DEVICE_ID }}" news.webp
-            echo "push $i OK $(date -u +%H:%M)"
-            if [ "$i" -lt 33 ]; then sleep 600; fi
-          done
-
-      # GitHub disables scheduled workflows after 60 days without repo
-      # activity; hitting the enable endpoint resets that clock.
+      # Runs FIRST so a later render/push failure can't skip it: this is
+      # what stops GitHub from auto-disabling the schedule after 60 days.
       - name: Keepalive
         run: gh api -X PUT "repos/${GITHUB_REPOSITORY}/actions/workflows/push-news.yml/enable"
         env:
           GH_TOKEN: ${{ github.token }}
+
+      - name: Install pixlet
+        run: curl -sL https://github.com/tidbyt/pixlet/releases/download/v0.34.0/pixlet_0.34.0_linux_amd64.tar.gz | tar xz
+
+      # One transient failure must not kill the remaining iterations —
+      # the next scheduled run can be hours away. On a render failure,
+      # re-push the previous webp so the device at least stays fresh-ish.
+      - name: Render and push every 10 minutes
+        run: |
+          for i in $(seq 1 33); do
+            if ./pixlet render news/greenpoint_news.star -o fresh.webp; then
+              mv fresh.webp news.webp
+            else
+              echo "render $i FAILED, reusing previous webp"
+            fi
+            if [ -f news.webp ]; then
+              ./pixlet push \
+                --api-token "${{ secrets.TIDBYT_API_TOKEN }}" \
+                --installation-id news \
+                "${{ secrets.TIDBYT_DEVICE_ID }}" news.webp \
+                && echo "push $i OK $(date -u +%H:%M)" \
+                || echo "push $i FAILED"
+            fi
+            if [ "$i" -lt 33 ]; then sleep 600; fi
+          done

@@ -9,28 +9,35 @@ permissions:
   contents: read
   actions: write
 
+# GitHub throttles free-tier cron to ~1-3h in practice, so each run keeps
+# itself alive for ~5.5h pushing every 10 minutes, and the next scheduled
+# run queues behind it (cancel-in-progress must stay false). Coverage
+# holds as long as cron fires at least once per 5.5h window.
 concurrency:
   group: push-weather
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   push:
     runs-on: ubuntu-latest
+    timeout-minutes: 355
     steps:
       - uses: actions/checkout@v4
 
       - name: Install pixlet
         run: curl -sL https://github.com/tidbyt/pixlet/releases/download/v0.34.0/pixlet_0.34.0_linux_amd64.tar.gz | tar xz
 
-      - name: Render weather
-        run: ./pixlet render weather/weather.star -o weather.webp
-
-      - name: Push to Tidbyt
+      - name: Render and push every 10 minutes
         run: |
-          ./pixlet push \
-            --api-token "${{ secrets.TIDBYT_API_TOKEN }}" \
-            --installation-id weather \
-            "${{ secrets.TIDBYT_DEVICE_ID }}" weather.webp
+          for i in $(seq 1 33); do
+            ./pixlet render weather/weather.star -o weather.webp
+            ./pixlet push \
+              --api-token "${{ secrets.TIDBYT_API_TOKEN }}" \
+              --installation-id weather \
+              "${{ secrets.TIDBYT_DEVICE_ID }}" weather.webp
+            echo "push $i OK $(date -u +%H:%M)"
+            [ "$i" -lt 33 ] && sleep 600
+          done
 
       # GitHub disables scheduled workflows after 60 days without repo
       # activity; hitting the enable endpoint resets that clock.

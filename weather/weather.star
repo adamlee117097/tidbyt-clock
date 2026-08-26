@@ -56,6 +56,7 @@ PAL = {
     "w": SNOW,
     "f": FLASH,
     "m": MOON,
+    "h": "#78889B",
     "u": HI_RED,
     "v": LO_BLUE,
 }
@@ -209,7 +210,7 @@ def bitmap(rows):
     return render.Column(children = out)
 
 def falling_frames(char, cols, n_frames):
-    """Cloud with 2px precipitation streaks falling beneath it, looping."""
+    """Cloud with single flakes drifting straight down beneath it, looping."""
     frames = []
     drop_rows = 8
     for f in range(n_frames):
@@ -219,9 +220,33 @@ def falling_frames(char, cols, n_frames):
             for c in range(16):
                 hit = False
                 for i, col in enumerate(cols):
-                    if c == col and (r - f + i * 3) % drop_rows < 2:
+                    if c == col and (r - f + i * 3) % drop_rows == 0:
                         hit = True
                 line += char if hit else "."
+            rows.append(line)
+        frames.append(bitmap(rows))
+    return frames
+
+def rain_cloud():
+    # blue-gray storm cloud, like the rain-cloud emoji
+    return [row.replace("g", "h") for row in CLOUD_TOP]
+
+def rain_frames():
+    """Slanted 2px rain streaks under a blue-gray cloud (a la the emoji)."""
+    frames = []
+    drop_rows = 8
+    bases = [5, 8, 11, 14]
+    for f in range(drop_rows):
+        rows = rain_cloud()
+        for r in range(drop_rows):
+            line = ""
+            for c in range(16):
+                hit = False
+                for i, base in enumerate(bases):
+                    p = (f + i * 3) % drop_rows
+                    if (r == p or r == p - 1) and c == base - (r // 2):
+                        hit = True
+                line += "b" if hit else "."
             rows.append(line)
         frames.append(bitmap(rows))
     return frames
@@ -229,7 +254,7 @@ def falling_frames(char, cols, n_frames):
 def storm_frames():
     frames = []
     for f in range(8):
-        rows = list(CLOUD_TOP)
+        rows = rain_cloud()
         if f in (2, 3):  # lightning flash
             rows += BOLT
         else:
@@ -248,7 +273,7 @@ def pick_icon(short, is_day):
     if "snow" in s or "flurr" in s or "sleet" in s or "wintry" in s:
         return falling_frames("w", [2, 6, 10, 13], 8)
     if "rain" in s or "shower" in s or "drizzle" in s:
-        return falling_frames("b", [2, 6, 10, 13], 8)
+        return rain_frames()
     if "fog" in s or "mist" in s or "haze" in s:
         return [bitmap(FOG)]
     if "partly" in s or "mostly sunny" in s or "mostly clear" in s:

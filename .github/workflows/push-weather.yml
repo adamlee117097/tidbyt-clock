@@ -36,7 +36,7 @@ jobs:
               --installation-id weather \
               "${{ secrets.TIDBYT_DEVICE_ID }}" weather.webp
             echo "push $i OK $(date -u +%H:%M)"
-            [ "$i" -lt 33 ] && sleep 600
+            if [ "$i" -lt 33 ]; then sleep 600; fi
           done
 
       # GitHub disables scheduled workflows after 60 days without repo

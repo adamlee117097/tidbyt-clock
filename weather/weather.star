@@ -53,6 +53,8 @@ PAL = {
     "w": SNOW,
     "f": FLASH,
     "m": MOON,
+    "u": "#C8860A",
+    "v": DIM,
 }
 
 SUN = [
@@ -170,6 +172,25 @@ BOLT = [
     "....ff..........",
     "...f............",
     "................",
+]
+
+UP_ARROW = [
+    "..u..",
+    ".uuu.",
+    "uuuuu",
+]
+
+DOWN_ARROW = [
+    "vvvvv",
+    ".vvv.",
+    "..v..",
+]
+
+DROP = [
+    ".b.",
+    "bbb",
+    "bbb",
+    ".b.",
 ]
 
 def bitmap(rows):
@@ -371,53 +392,61 @@ def main(config):
 
     icon_frames = pick_icon(short, is_day)
 
-    top = render.Row(
-        expanded = True,
-        main_align = "center",
-        cross_align = "center",
-        children = [
-            render.Padding(
-                pad = (0, 1, 3, 0),
-                child = render.Animation(children = icon_frames),
+    top = render.Box(
+        height = 20,
+        child = render.Row(
+            expanded = True,
+            main_align = "center",
+            cross_align = "center",
+            children = [
+                render.Padding(
+                    pad = (0, 1, 3, 0),
+                    child = render.Animation(children = icon_frames),
+                ),
+                render.Text(content = str(temp), font = "10x20", color = GOLD),
+                degree_mark(),
+            ],
+        ),
+    )
+
+    label_row = render.Box(
+        height = 6,
+        child = render.Text(content = label_for(short), font = "tom-thumb", color = AMBER),
+    )
+
+    divider = render.Box(width = 64, height = 1, color = "#33220A")
+
+    footer = render.Box(
+        height = 5,
+        child = render.Padding(
+            pad = (2, 0, 2, 0),
+            child = render.Row(
+                expanded = True,
+                main_align = "space_between",
+                children = [
+                    render.Row(
+                        children = [
+                            render.Padding(pad = (0, 1, 1, 0), child = bitmap(UP_ARROW)),
+                            render.Text(content = str(hi), font = "tom-thumb", color = AMBER),
+                            render.Box(width = 4, height = 1),
+                            render.Padding(pad = (0, 1, 1, 0), child = bitmap(DOWN_ARROW)),
+                            render.Text(content = str(lo), font = "tom-thumb", color = DIM),
+                        ],
+                    ),
+                    render.Row(
+                        children = [
+                            render.Padding(pad = (0, 0, 1, 0), child = bitmap(DROP)),
+                            render.Text(content = str(int(pop)) + "%", font = "tom-thumb", color = RAIN if pop >= 30 else DIM),
+                        ],
+                    ),
+                ],
             ),
-            render.Text(content = str(temp), font = "10x20", color = GOLD),
-            degree_mark(),
-        ],
-    )
-
-    label_row = render.Row(
-        expanded = True,
-        main_align = "center",
-        children = [
-            render.Text(content = label_for(short), font = "tom-thumb", color = AMBER),
-        ],
-    )
-
-    hl_row = render.Row(
-        expanded = True,
-        main_align = "space_between",
-        children = [
-            render.Row(children = [
-                render.Text(content = "H", font = "tom-thumb", color = DIM),
-                render.Text(content = str(hi), font = "tom-thumb", color = AMBER),
-                render.Text(content = " L", font = "tom-thumb", color = DIM),
-                render.Text(content = str(lo), font = "tom-thumb", color = AMBER),
-            ]),
-            render.Row(children = [
-                render.Box(width = 1, height = 2),
-                render.Text(content = str(int(pop)) + "%", font = "tom-thumb", color = RAIN if pop >= 30 else DIM),
-            ]),
-        ],
+        ),
     )
 
     return render.Root(
         delay = 180,
-        child = render.Padding(
-            pad = (1, 0, 1, 1),
-            child = render.Column(
-                expanded = True,
-                main_align = "space_between",
-                children = [top, label_row, hl_row],
-            ),
+        child = render.Column(
+            children = [top, label_row, divider, footer],
         ),
     )

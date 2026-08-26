@@ -39,6 +39,9 @@ CLOUD_DK = "#5C564E"
 RAIN = "#5B8DB8"
 SNOW = "#D8D8D8"
 FLASH = "#FFE066"
+HI_RED = "#FF4D2E"
+LO_BLUE = "#4FA0E0"
+COLD_BLUE = "#7EC8FF"
 MOON = "#D8B45A"
 
 # ---- pixel-art icons ------------------------------------------------------
@@ -53,8 +56,8 @@ PAL = {
     "w": SNOW,
     "f": FLASH,
     "m": MOON,
-    "u": "#C8860A",
-    "v": DIM,
+    "u": HI_RED,
+    "v": LO_BLUE,
 }
 
 SUN = [
@@ -289,24 +292,33 @@ def label_for(short):
         return "WINDY"
     return short.upper()[:14]
 
-def degree_mark():
+def temp_color(t, celsius):
+    cold = 0 if celsius else 32
+    hot = 32 if celsius else 90
+    if t <= cold:
+        return COLD_BLUE
+    if t >= hot:
+        return HI_RED
+    return GOLD
+
+def degree_mark(color):
     return render.Padding(
         pad = (1, 2, 0, 0),
         child = render.Column(
             children = [
                 render.Row(children = [
                     render.Box(width = 1, height = 1),
-                    render.Box(width = 2, height = 1, color = GOLD),
+                    render.Box(width = 2, height = 1, color = color),
                     render.Box(width = 1, height = 1),
                 ]),
                 render.Row(children = [
-                    render.Box(width = 1, height = 2, color = GOLD),
+                    render.Box(width = 1, height = 2, color = color),
                     render.Box(width = 2, height = 2),
-                    render.Box(width = 1, height = 2, color = GOLD),
+                    render.Box(width = 1, height = 2, color = color),
                 ]),
                 render.Row(children = [
                     render.Box(width = 1, height = 1),
-                    render.Box(width = 2, height = 1, color = GOLD),
+                    render.Box(width = 2, height = 1, color = color),
                     render.Box(width = 1, height = 1),
                 ]),
             ],
@@ -392,6 +404,8 @@ def main(config):
 
     icon_frames = pick_icon(short, is_day)
 
+    tc = temp_color(temp, False)
+
     top = render.Box(
         height = 20,
         child = render.Row(
@@ -403,8 +417,8 @@ def main(config):
                     pad = (0, 1, 3, 0),
                     child = render.Animation(children = icon_frames),
                 ),
-                render.Text(content = str(temp), font = "10x20", color = GOLD),
-                degree_mark(),
+                render.Text(content = str(temp), font = "10x20", color = tc),
+                degree_mark(tc),
             ],
         ),
     )
@@ -427,10 +441,10 @@ def main(config):
                     render.Row(
                         children = [
                             render.Padding(pad = (0, 1, 1, 0), child = bitmap(UP_ARROW)),
-                            render.Text(content = str(hi), font = "tom-thumb", color = AMBER),
+                            render.Text(content = str(hi), font = "tom-thumb", color = HI_RED),
                             render.Box(width = 4, height = 1),
                             render.Padding(pad = (0, 1, 1, 0), child = bitmap(DOWN_ARROW)),
-                            render.Text(content = str(lo), font = "tom-thumb", color = DIM),
+                            render.Text(content = str(lo), font = "tom-thumb", color = LO_BLUE),
                         ],
                     ),
                     render.Row(

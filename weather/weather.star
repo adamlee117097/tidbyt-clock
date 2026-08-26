@@ -15,6 +15,7 @@ Config params (pixlet render weather.star key=value):
 
 load("render.star", "render")
 load("http.star", "http")
+load("humanize.star", "humanize")
 load("time.star", "time")
 
 HOURLY_URL = "https://api.weather.gov/gridpoints/OKX/35,43/forecast/hourly"
@@ -372,29 +373,46 @@ def offline(msg):
         ),
     )
 
+DAY_LABELS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
+
+def mode(lst):
+    count = {}
+    for item in lst:
+        count[item] = count.get(item, 0) + 1
+    best, best_n = None, 0
+    for item, n in count.items():
+        if n > best_n:
+            best, best_n = item, n
+    return best
+
+def forecast_col(label, icon_frames, temp_text, temp_col):
+    return render.Column(
+        cross_align = "center",
+        children = [
+            render.Text(content = label, font = "tom-thumb", color = AMBER),
+            render.Animation(children = icon_frames),
+            render.Text(content = temp_text, color = temp_col),
+        ],
+    )
+
 def main(config):
-    tz = config.get("$tz") or DEFAULT_TZ
-
     hourly = fetch_json(HOURLY_URL)
-    daily = fetch_json(DAILY_URL)
-    if hourly == None or daily == None:
+    if hourly == None:
         return offline("OFFLINE")
+    periods = hourly["properties"]["periods"]
 
-    now_p = hourly["properties"]["periods"][0]
+    now_p = periods[0]
     temp = int(now_p["temperature"])
     short = now_p["shortForecast"]
     is_day = bool(now_p.get("isDaytime", True))
 
-    # ---- Open-Meteo blend (best-effort; NWS values stand if it's down) ----
-    om_pop = 0
+    # Open-Meteo blend: shop-exact current temp + raining-right-now override
     om = fetch_json(OM_URL)
     if om != None and "current" in om:
         cur = om["current"]
         t = float(cur.get("temperature_2m", temp))
         temp = int(t + 0.5) if t >= 0 else int(t - 0.5)
         is_day = cur.get("is_day", 1 if is_day else 0) == 1
-
-        # precipitating at the shop right now: let that override the icon
         if float(cur.get("precipitation", 0) or 0) > 0:
             code = int(cur.get("weather_code", 61))
             if code >= 95:
@@ -404,88 +422,40 @@ def main(config):
             else:
                 short = "Rain Showers"
 
-        probs = om.get("hourly", {}).get("precipitation_probability", [])
-        for p in probs[:6]:
-            if p != None and int(p) > om_pop:
-                om_pop = int(p)
+    # group hourly periods by calendar day, NWS-live-forecast style
+    now = time.now()
+    days = []
+    prev_day = None
+    for period in periods:
+        day = time.parse_time(period["startTime"]).format("2006-01-02")
+        if prev_day == None or day != prev_day:
+            days.append([])
+            prev_day = day
+        days[len(days) - 1].append(period)
 
-    d0 = daily["properties"]["periods"][0]
-    d1 = daily["properties"]["periods"][1]
-    if d0["isDaytime"]:
-        hi, lo = int(d0["temperature"]), int(d1["temperature"])
-    else:
-        # evening: d0 = tonight's low, d1 = tomorrow's high
-        hi, lo = int(d1["temperature"]), int(d0["temperature"])
+    cols = [forecast_col("NOW", pick_icon(short, is_day), str(temp) + "\u00b0", temp_color(temp, False))]
 
-    pop = d0.get("probabilityOfPrecipitation", {}).get("value") or 0
-    # surface the most urgent of today's, the next few NWS hours', and
-    # Open-Meteo's short-horizon precip odds
-    for p in hourly["properties"]["periods"][:4]:
-        hp = p.get("probabilityOfPrecipitation", {}).get("value") or 0
-        if hp > pop:
-            pop = hp
-    if om_pop > pop:
-        pop = om_pop
-
-    icon_frames = pick_icon(short, is_day)
-
-    tc = temp_color(temp, False)
-
-    top = render.Box(
-        height = 20,
-        child = render.Row(
-            expanded = True,
-            main_align = "center",
-            cross_align = "center",
-            children = [
-                render.Padding(
-                    pad = (0, 1, 3, 0),
-                    child = render.Animation(children = icon_frames),
-                ),
-                render.Text(content = str(temp), font = "10x20", color = tc),
-                degree_mark(tc),
-            ],
-        ),
-    )
-
-    label_row = render.Box(
-        height = 6,
-        child = render.Text(content = label_for(short), font = "tom-thumb", color = AMBER),
-    )
-
-    divider = render.Box(width = 64, height = 1, color = "#33220A")
-
-    footer = render.Box(
-        height = 5,
-        child = render.Padding(
-            pad = (2, 0, 2, 0),
-            child = render.Row(
-                expanded = True,
-                main_align = "space_between",
-                children = [
-                    render.Row(
-                        children = [
-                            render.Padding(pad = (0, 1, 1, 0), child = bitmap(UP_ARROW)),
-                            render.Text(content = str(hi), font = "tom-thumb", color = HI_RED),
-                            render.Box(width = 4, height = 1),
-                            render.Padding(pad = (0, 1, 1, 0), child = bitmap(DOWN_ARROW)),
-                            render.Text(content = str(lo), font = "tom-thumb", color = LO_BLUE),
-                        ],
-                    ),
-                    render.Row(
-                        children = [
-                            render.Padding(pad = (0, 0, 1, 0), child = bitmap(DROP)),
-                            render.Text(content = str(int(pop)) + "%", font = "tom-thumb", color = RAIN if pop >= 30 else DIM),
-                        ],
-                    ),
-                ],
-            ),
-        ),
-    )
+    for day in days:
+        if len(cols) >= 3:
+            break
+        day_start = time.parse_time(day[0]["startTime"])
+        high = max([int(p["temperature"]) for p in day])
+        fc = mode([p["shortForecast"] for p in day])
+        if day_start < now:
+            # only show today's high if it's still ahead of us
+            if high <= temp:
+                continue
+            label = "TODAY"
+        else:
+            label = DAY_LABELS[humanize.day_of_week(day_start)]
+        cols.append(forecast_col(label, pick_icon(fc, True), str(high) + "\u00b0", GOLD))
 
     return render.Root(
         delay = 180,
-        child = render.Column(
-            children = [top, label_row, divider, footer],
+        child = render.Row(
+            expanded = True,
+            main_align = "space_around",
+            cross_align = "center",
+            children = cols,
         ),
     )

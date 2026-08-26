@@ -80,23 +80,30 @@ def strip_html(s):
         ("…", "..."),
     ]:
         out = out.replace(a, b)
-    i = out.find("[ more")
-    if i >= 0:
-        out = out[:i]
+    for marker in ["[ more", "The post "]:
+        i = out.find(marker)
+        if i >= 0:
+            out = out[:i]
     return " ".join(out.split())
 
-def words_of(s):
+STOPWORDS = ["with", "this", "that", "from", "will", "after", "have",
+             "been", "they", "their", "them", "were", "when", "what",
+             "your", "more", "some", "just", "into", "over", "about"]
+
+def stems_of(s):
+    """4-char stems of significant words, so open/opening and
+    prepares/preparing count as the same word."""
     out = []
     cur = ""
     for ch in s.lower().elems():
         if ch.isalnum():
             cur += ch
         else:
-            if len(cur) > 3:
-                out.append(cur)
+            if len(cur) > 3 and cur not in STOPWORDS:
+                out.append(cur[:4])
             cur = ""
-    if len(cur) > 3:
-        out.append(cur)
+    if len(cur) > 3 and cur not in STOPWORDS:
+        out.append(cur[:4])
     return out
 
 def sentences_of(s):
@@ -104,7 +111,12 @@ def sentences_of(s):
     start = 0
     n = len(s)
     for i in range(n - 1):
+        end = False
         if s[i] in (".", "!", "?") and s[i + 1] == " ":
+            end = True
+        elif s[i] == "\"" and i > 0 and s[i - 1] in (".", "!", "?") and s[i + 1] == " ":
+            end = True
+        if end:
             sents.append(s[start:i + 1])
             start = i + 2
     if start < n:
@@ -123,22 +135,32 @@ def shorten(s):
     return cut + "..."
 
 def pick_summary(title, desc):
-    """First sentence that ADDS information: skip sentences that mostly
-    restate the headline; return "" when the blurb is pure echo."""
-    twords = words_of(title)
+    """First sentence that ADDS information. A sentence is an echo if a
+    third of its words repeat the headline, or if it covers a third of the
+    headline's content (stem-matched, so inflections count)."""
+    tstems = stems_of(title)
+    if not tstems:
+        return ""
     for sent in sentences_of(desc)[:4]:
         sent = sent.strip()
         if len(sent) < 20:
             continue
-        swords = words_of(sent)
-        if not swords:
+        sstems = stems_of(sent)
+        if not sstems:
             continue
         dup = 0
-        for w in swords:
-            if w in twords:
+        for w in sstems:
+            if w in tstems:
                 dup += 1
-        if dup * 2 < len(swords):
-            return shorten(sent)
+        cov = 0
+        for w in tstems:
+            if w in sstems:
+                cov += 1
+        if dup * 3 >= len(sstems):
+            continue
+        if cov * 3 >= len(tstems):
+            continue
+        return shorten(sent)
     return ""
 
 def parse_pub(pub):

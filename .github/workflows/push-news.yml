@@ -29,7 +29,7 @@ jobs:
       - name: Render and push every 10 minutes
         run: |
           for i in $(seq 1 33); do
-            ./pixlet render news/wnyc_news.star -o news.webp
+            ./pixlet render news/greenpoint_news.star -o news.webp
             ./pixlet push \
               --api-token "${{ secrets.TIDBYT_API_TOKEN }}" \
               --installation-id news \

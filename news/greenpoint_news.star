@@ -1,8 +1,10 @@
-"""WNYC / Gothamist news for Tidbyt (64x32).
+"""Hyper-local Greenpoint news for Tidbyt (64x32).
 
-A close clone of the proven catalog NPR-news app layout — branded header
-bar + vertically scrolling story list — pointed at Gothamist, the local
-newsroom of WNYC (New York Public Radio). Free RSS, no API key.
+Merges the two feeds that actually cover the neighborhood — Greenpointers
+(greenpointers.com) and Brooklyn Paper's Greenpoint tag — sorts by
+recency, and scrolls a rotating pair of stories in the proven
+catalog-news layout (branded header + vertical marquee). Free RSS,
+no API keys.
 
 Pushed by GitHub Actions; the scrolling animation loops on-device
 between pushes.
@@ -13,19 +15,21 @@ load("render.star", "render")
 load("time.star", "time")
 load("xpath.star", "xpath")
 
-FEED_URL = "https://gothamist.com/feed"
+FEEDS = [
+    {"tag": "GPTRS", "url": "https://greenpointers.com/feed/"},
+    {"tag": "BK PAPER", "url": "https://www.brooklynpaper.com/tag/greenpoint/feed/"},
+]
+PER_FEED = 3
 CACHE_TTL_SECONDS = 600
-ARTICLE_COUNT = 4  # fetched; two shown per cycle, rotating
 ANIMATION_SPEED = 100  # ms per frame
 TZ = "America/New_York"
 
-WNYC_RED = "#C8102E"
+GP_GREEN = "#1E7A33"
 WHITE = "#FFFFFF"
 HEADLINE = "#FFFFFF"
 STORY = "#9AA0A6"
-TIME_C = "#6E6E6E"
-HEADER_H = 6
 ACCENT_GOLD = "#D9A21B"
+HEADER_H = 6
 
 def strip_html(s):
     out = ""
@@ -47,7 +51,10 @@ def strip_html(s):
         ("&#8216;", "'"),
         ("&#8220;", "\""),
         ("&#8221;", "\""),
+        ("&#8211;", "-"),
+        ("&#8212;", "-"),
         ("&#8230;", "..."),
+        ("&#124;", "|"),
         ("&nbsp;", " "),
         ("’", "'"),
         ("‘", "'"),
@@ -63,21 +70,6 @@ def strip_html(s):
         out = out[:i]
     return " ".join(out.split())
 
-def format_time(timestamp):
-    if not timestamp:
-        return ""
-    parsed = time.parse_time(timestamp, "Mon, 02 Jan 2006 15:04:05 -0700")
-    if parsed == None:
-        return ""
-    mins = int((time.now() - parsed).minutes)
-    if mins < 1:
-        return "JUST NOW"
-    if mins < 60:
-        return str(mins) + "M AGO"
-    if mins < 60 * 24:
-        return str(mins // 60) + "H AGO"
-    return str(mins // (60 * 24)) + "D AGO"
-
 def summarize(s):
     """First sentence (past a minimum length), else a word-boundary cut."""
     if len(s) <= 55:
@@ -91,34 +83,49 @@ def summarize(s):
         cut = cut[:last_space]
     return cut + "..."
 
-def get_articles():
-    res = http.get(FEED_URL, ttl_seconds = CACHE_TTL_SECONDS)
-    if res.status_code != 200:
-        return [{"title": "WNYC feed unavailable", "description": "", "pubDate": ""}]
+def ago(parsed):
+    if parsed == None:
+        return ""
+    mins = int((time.now() - parsed).minutes)
+    if mins < 1:
+        return "JUST NOW"
+    if mins < 60:
+        return str(mins) + "M AGO"
+    if mins < 60 * 24:
+        return str(mins // 60) + "H AGO"
+    return str(mins // (60 * 24)) + "D AGO"
 
-    doc = xpath.loads(res.body())
-    articles = []
-    for i in range(1, ARTICLE_COUNT + 1):
-        title = doc.query("//item[%d]/title" % i)
-        description = doc.query("//item[%d]/description" % i)
-        pub = doc.query("//item[%d]/pubDate" % i)
-        if title == None:
+def get_articles():
+    items = []
+    for feed in FEEDS:
+        res = http.get(feed["url"], ttl_seconds = CACHE_TTL_SECONDS)
+        if res.status_code != 200:
             continue
-        desc = summarize(strip_html(description or ""))
-        articles.append({
-            "title": strip_html(title),
-            "description": desc,
-            "pubDate": format_time(pub or ""),
-        })
-    if not articles:
-        return [{"title": "No stories right now", "description": "", "pubDate": ""}]
-    return articles
+        doc = xpath.loads(res.body())
+        for i in range(1, PER_FEED + 1):
+            title = doc.query("//item[%d]/title" % i)
+            description = doc.query("//item[%d]/description" % i)
+            pub = doc.query("//item[%d]/pubDate" % i)
+            if title == None:
+                continue
+            parsed = None
+            if pub:
+                parsed = time.parse_time(pub, "Mon, 02 Jan 2006 15:04:05 -0700")
+            items.append({
+                "title": strip_html(title),
+                "description": summarize(strip_html(description or "")),
+                "meta": feed["tag"] + " - " + ago(parsed) if parsed else feed["tag"],
+                "ts": parsed.unix if parsed else 0,
+            })
+    if not items:
+        return [{"title": "Greenpoint feeds unavailable", "description": "", "meta": "", "ts": 0}]
+    return sorted(items, key = lambda a: a["ts"], reverse = True)
 
 def render_header():
     return render.Box(
         width = 64,
         height = HEADER_H,
-        color = WNYC_RED,
+        color = GP_GREEN,
         child = render.Row(
             expanded = True,
             main_align = "space_between",
@@ -126,11 +133,11 @@ def render_header():
             children = [
                 render.Padding(
                     pad = (1, 0, 0, 0),
-                    child = render.Text(content = "WNYC", font = "tom-thumb", color = WHITE),
+                    child = render.Text(content = "GREENPOINT", font = "tom-thumb", color = WHITE),
                 ),
                 render.Padding(
                     pad = (0, 0, 1, 0),
-                    child = render.Text(content = "NYC NEWS", font = "tom-thumb", color = "#FFB3BE"),
+                    child = render.Text(content = "11222", font = "tom-thumb", color = "#A9E3B2"),
                 ),
             ],
         ),
@@ -153,15 +160,15 @@ def render_articles(articles):
                 color = STORY,
                 font = "tom-thumb",
             ))
-        if article["pubDate"]:
+        if article["meta"]:
             elements.append(render.Box(height = 1))
             elements.append(render.Text(
-                content = article["pubDate"],
+                content = article["meta"],
                 color = ACCENT_GOLD,
                 font = "tom-thumb",
             ))
         elements.append(render.Box(height = 2))
-        elements.append(render.Box(width = 64, height = 1, color = "#3A0810"))
+        elements.append(render.Box(width = 64, height = 1, color = "#0C3315"))
         elements.append(render.Box(height = 2))
     return elements
 
@@ -173,6 +180,7 @@ def main(config):
     if len(articles) > 2:
         start = time.now().in_location(TZ).minute // 10 % len(articles)
         articles = [articles[start], articles[(start + 1) % len(articles)]]
+
     return render.Root(
         delay = ANIMATION_SPEED,
         show_full_animation = True,

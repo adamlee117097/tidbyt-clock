@@ -15,7 +15,7 @@ load("xpath.star", "xpath")
 
 FEED_URL = "https://gothamist.com/feed"
 CACHE_TTL_SECONDS = 600
-ARTICLE_COUNT = 3
+ARTICLE_COUNT = 4  # fetched; two shown per cycle, rotating
 ANIMATION_SPEED = 100  # ms per frame
 TZ = "America/New_York"
 
@@ -78,6 +78,19 @@ def format_time(timestamp):
         return str(mins // 60) + "H AGO"
     return str(mins // (60 * 24)) + "D AGO"
 
+def summarize(s):
+    """First sentence (past a minimum length), else a word-boundary cut."""
+    if len(s) <= 55:
+        return s
+    for i in range(20, min(len(s) - 1, 70)):
+        if s[i] in (".", "!", "?") and s[i + 1] == " ":
+            return s[:i + 1]
+    cut = s[:70]
+    last_space = cut.rfind(" ")
+    if last_space > 35:
+        cut = cut[:last_space]
+    return cut + "..."
+
 def get_articles():
     res = http.get(FEED_URL, ttl_seconds = CACHE_TTL_SECONDS)
     if res.status_code != 200:
@@ -91,9 +104,7 @@ def get_articles():
         pub = doc.query("//item[%d]/pubDate" % i)
         if title == None:
             continue
-        desc = strip_html(description or "")
-        if len(desc) > 160:
-            desc = desc[:160] + "..."
+        desc = summarize(strip_html(description or ""))
         articles.append({
             "title": strip_html(title),
             "description": desc,
@@ -156,6 +167,12 @@ def render_articles(articles):
 
 def main(config):
     articles = get_articles()
+
+    # two stories fit a full scroll under pixlet's frame cap; rotate the
+    # visible pair each 10-minute push so all stories get airtime
+    if len(articles) > 2:
+        start = time.now().in_location(TZ).minute // 10 % len(articles)
+        articles = [articles[start], articles[(start + 1) % len(articles)]]
     return render.Root(
         delay = ANIMATION_SPEED,
         show_full_animation = True,

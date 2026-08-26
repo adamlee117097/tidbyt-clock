@@ -128,49 +128,33 @@ def render_header():
         color = GP_GREEN,
         child = render.Row(
             expanded = True,
-            main_align = "space_between",
+            main_align = "center",
             cross_align = "center",
             children = [
-                render.Padding(
-                    pad = (1, 0, 0, 0),
-                    child = render.Text(content = "GREENPOINT", font = "tom-thumb", color = WHITE),
-                ),
-                render.Padding(
-                    pad = (0, 0, 1, 0),
-                    child = render.Text(content = "11222", font = "tom-thumb", color = "#A9E3B2"),
-                ),
+                render.Text(content = "GREENPOINT NEWS", font = "tom-thumb", color = WHITE),
             ],
         ),
     )
 
-def render_articles(articles):
-    elements = []
-    for article in articles:
-        elements.append(render.WrappedText(
-            content = article["title"],
-            width = 64,
-            color = HEADLINE,
-            font = "tom-thumb",
-        ))
-        if article["description"]:
-            elements.append(render.Box(height = 1))
-            elements.append(render.WrappedText(
-                content = article["description"],
-                width = 64,
-                color = STORY,
-                font = "CG-pixel-3x5-mono",
-            ))
-        if article["meta"]:
-            elements.append(render.Box(height = 1))
-            elements.append(render.Text(
-                content = article["meta"],
-                color = ACCENT_GOLD,
-                font = "CG-pixel-3x5-mono",
-            ))
-        elements.append(render.Box(height = 2))
-        elements.append(render.Box(width = 64, height = 1, color = "#0C3315"))
-        elements.append(render.Box(height = 2))
-    return elements
+def clip(s, n):
+    if len(s) <= n:
+        return s
+    cut = s[:n]
+    last_space = cut.rfind(" ")
+    if last_space > n // 2:
+        cut = cut[:last_space]
+    return cut + "..."
+
+def ticker_lane(article, font, color, lead_spaces, max_chars):
+    return render.Marquee(
+        width = 64,
+        scroll_direction = "horizontal",
+        child = render.Text(
+            content = " " * lead_spaces + clip(article["title"], max_chars),
+            font = font,
+            color = color,
+        ),
+    )
 
 def main(config):
     articles = get_articles()
@@ -181,20 +165,20 @@ def main(config):
         start = time.now().in_location(TZ).minute // 10 % len(articles)
         articles = [articles[(start + i) % len(articles)] for i in range(3)]
 
+    a = [articles[i % len(articles)] for i in range(3)]
+
+    # headlines only: top story big and white, the next two smaller in
+    # gold and blue, each lane a staggered right-to-left crawl
     return render.Root(
-        delay = ANIMATION_SPEED,
-        show_full_animation = True,
+        delay = 80,
         child = render.Column(
             children = [
                 render_header(),
-                render.Marquee(
-                    height = 32 - HEADER_H,
-                    scroll_direction = "vertical",
-                    offset_start = 32 - HEADER_H,
-                    child = render.Column(
-                        children = render_articles(articles),
-                    ),
-                ),
+                ticker_lane(a[0], "tb-8", "#FFFFFF", 0, 36),
+                render.Box(height = 1),
+                ticker_lane(a[1], "tom-thumb", ACCENT_GOLD, 3, 44),
+                render.Box(height = 1),
+                ticker_lane(a[2], "tom-thumb", "#6FB7FF", 6, 44),
             ],
         ),
     )

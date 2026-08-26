@@ -25,6 +25,7 @@ HEADLINE = "#FFFFFF"
 STORY = "#9AA0A6"
 TIME_C = "#6E6E6E"
 HEADER_H = 6
+ACCENT_GOLD = "#D9A21B"
 
 def strip_html(s):
     out = ""
@@ -68,7 +69,14 @@ def format_time(timestamp):
     parsed = time.parse_time(timestamp, "Mon, 02 Jan 2006 15:04:05 -0700")
     if parsed == None:
         return ""
-    return parsed.in_location(TZ).format("Mon 3:04 PM")
+    mins = int((time.now() - parsed).minutes)
+    if mins < 1:
+        return "JUST NOW"
+    if mins < 60:
+        return str(mins) + "M AGO"
+    if mins < 60 * 24:
+        return str(mins // 60) + "H AGO"
+    return str(mins // (60 * 24)) + "D AGO"
 
 def get_articles():
     res = http.get(FEED_URL, ttl_seconds = CACHE_TTL_SECONDS)
@@ -138,10 +146,12 @@ def render_articles(articles):
             elements.append(render.Box(height = 1))
             elements.append(render.Text(
                 content = article["pubDate"],
-                color = TIME_C,
+                color = ACCENT_GOLD,
                 font = "tom-thumb",
             ))
-        elements.append(render.Box(height = 3))
+        elements.append(render.Box(height = 2))
+        elements.append(render.Box(width = 64, height = 1, color = "#3A0810"))
+        elements.append(render.Box(height = 2))
     return elements
 
 def main(config):

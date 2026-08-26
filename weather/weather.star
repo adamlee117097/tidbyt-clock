@@ -1,7 +1,10 @@
 """Warm-dark weather face for Tidbyt (64x32) — Greenpoint, Brooklyn.
 
-Pulls NWS gridpoint forecasts (no API key) for the shop's location and
-renders: big current temp, pixel-art condition icon (animated for
+Blends two keyless sources for the shop's location: NWS gridpoint
+forecasts (daily high/low, condition label, precip odds) with Open-Meteo
+(~1km HRRR blend) for the current temperature, day/night state, a
+raining-right-now icon override, and short-horizon precip probability.
+Renders: big current temp, pixel-art condition icon (animated for
 rain/snow/storms), condition label, daily high/low and precip chance.
 Pushed by GitHub Actions every 10 minutes; the short looping animation
 plays natively on-device between pushes.
@@ -16,6 +19,15 @@ load("time.star", "time")
 
 HOURLY_URL = "https://api.weather.gov/gridpoints/OKX/35,43/forecast/hourly"
 DAILY_URL = "https://api.weather.gov/gridpoints/OKX/35,43/forecast"
+
+# Open-Meteo blends the ~1km HRRR model at the exact shop coordinates —
+# sharper "right now" temp than NWS airport observations, and a
+# short-horizon precip probability. NWS stays the forecast backbone.
+OM_URL = ("https://api.open-meteo.com/v1/forecast" +
+          "?latitude=40.7295&longitude=-73.9540" +
+          "&current=temperature_2m,precipitation,weather_code,is_day" +
+          "&hourly=precipitation_probability&forecast_hours=6" +
+          "&temperature_unit=fahrenheit&timezone=America%2FNew_York")
 UA = "tidbyt-weather (github.com/adamlee117097/tidbyt-clock)"
 DEFAULT_TZ = "America/New_York"
 
@@ -285,6 +297,30 @@ def main(config):
     short = now_p["shortForecast"]
     is_day = bool(now_p.get("isDaytime", True))
 
+    # ---- Open-Meteo blend (best-effort; NWS values stand if it's down) ----
+    om_pop = 0
+    om = fetch_json(OM_URL)
+    if om != None and "current" in om:
+        cur = om["current"]
+        t = float(cur.get("temperature_2m", temp))
+        temp = int(t + 0.5) if t >= 0 else int(t - 0.5)
+        is_day = cur.get("is_day", 1 if is_day else 0) == 1
+
+        # precipitating at the shop right now: let that override the icon
+        if float(cur.get("precipitation", 0) or 0) > 0:
+            code = int(cur.get("weather_code", 61))
+            if code >= 95:
+                short = "Thunderstorms"
+            elif code in (71, 73, 75, 77, 85, 86):
+                short = "Snow"
+            else:
+                short = "Rain Showers"
+
+        probs = om.get("hourly", {}).get("precipitation_probability", [])
+        for p in probs[:6]:
+            if p != None and int(p) > om_pop:
+                om_pop = int(p)
+
     d0 = daily["properties"]["periods"][0]
     d1 = daily["properties"]["periods"][1]
     if d0["isDaytime"]:
@@ -294,11 +330,14 @@ def main(config):
         hi, lo = int(d1["temperature"]), int(d0["temperature"])
 
     pop = d0.get("probabilityOfPrecipitation", {}).get("value") or 0
-    # surface the more urgent of today's and the next few hours' precip odds
+    # surface the most urgent of today's, the next few NWS hours', and
+    # Open-Meteo's short-horizon precip odds
     for p in hourly["properties"]["periods"][:4]:
         hp = p.get("probabilityOfPrecipitation", {}).get("value") or 0
         if hp > pop:
             pop = hp
+    if om_pop > pop:
+        pop = om_pop
 
     icon_frames = pick_icon(short, is_day)
 

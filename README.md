@@ -5,7 +5,7 @@ palette, pushed standalone by GitHub Actions — no home machine involved.
 
 | App | Preview | What it shows |
 |---|---|---|
-| **weather** | ![Weather preview](weather/preview.gif) | Current temp, animated pixel-art conditions, daily high/low, precip chance (NWS, no API key) |
+| **weather** | ![Weather preview](weather/preview.gif) | Current temp, animated pixel-art conditions, daily high/low, precip chance (NWS + Open-Meteo blend, no API keys) |
 | **clock** | ![Clock preview](clock/preview.gif) | Gold digits, blinking colon, date, seconds bar *(experimental — see note)* |
 
 ## Run them on your own Tidbyt

@@ -35,7 +35,14 @@ DARK = (169, 58, 40)       # the perch line only, so the gold cups stay the
 SHADOW = (168, 56, 40)     # the shape's lower edge, to give the mass a form
                            # instead of a flat fill. Roughly 2:1 against coral
                            # -- any closer and the panel washes the two together
-EYE = (250, 240, 225)      # a bright pupil dropped into the logo's beak notch
+BEAK = (255, 238, 214)     # the beak gets its own colour, which is what every
+                           # small flamingo sprite does and what this one was
+                           # missing. A true black tip is unreachable here --
+                           # it would border the background on three sides --
+                           # so the downward hook is carried by shape alone.
+                           # The notch above it then reads as the dark eye,
+                           # which is the convention; a bright pupil there
+                           # competed with the beak and read as a glint.
 UNLIT = (0, 0, 0)          # the wing fold. Black is invisible AGAINST black,
                            # but inside a lit shape it is the strongest mark
                            # available -- the one place black works here
@@ -315,6 +322,7 @@ def draw_frame(angle, tick, awake=True):
 
     grid = bird_bitmap(angle)
     rows, cols = grid.shape
+    half = MIRROR // 2
     legs = {LEG_COL + i for i in range(LEG_W)}
     legs |= {MIRROR - c for c in legs}
     for y in range(rows):
@@ -329,7 +337,6 @@ def draw_frame(angle, tick, awake=True):
 
     # A 1px fold traced parallel to the wing's leading edge. 2px was tried and
     # reads as a hole punched in the bird rather than as a line.
-    half = MIRROR // 2
     for row in WING_ROWS:
         lit = [c for c in range(half) if grid[row, c]]
         if not lit:
@@ -339,12 +346,22 @@ def draw_frame(angle, tick, awake=True):
             put(col, row, UNLIT)
             put(MIRROR - col, row, UNLIT)
 
-    if awake:                                   # one eye per bird; a roosting
-        holes = _holes(grid)                    # flamingo has its eyes shut
-        for half in (range(MIRROR // 2), range(MIRROR // 2, cols)):
-            lit = [(int(r), int(c)) for c in half for r in np.where(holes[:, c])[0]]
-            if lit:
-                put(min(lit)[1], min(lit)[0], EYE)
+    # The beak is the lit run immediately outboard of that notch -- the logo
+    # already draws the right shape, it was just the same coral as the bird.
+    # Derived from the notch rather than placed, so it tracks the head angle.
+    # Not drawn asleep: the folded head turns the notch into a larger enclosed
+    # region that reads as a pale blob rather than a bill, and a roosting
+    # flamingo has its beak tucked away into its back anyway.
+    holes = _holes(grid)
+    for row in range(rows) if awake else ():
+        notch = [c for c in range(half) if holes[row, c]]
+        if not notch:
+            continue
+        col = max(notch) + 1
+        while col < half and grid[row, col]:
+            put(col, row, BEAK)
+            put(MIRROR - col, row, BEAK)
+            col += 1
 
     # Perch line first, legs over it: drawn the other way round its dark
     # pixel lands on top of the leg at any crossing and severs it. It goes

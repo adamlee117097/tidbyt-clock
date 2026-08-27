@@ -149,10 +149,21 @@ pixlet delete --api-token "$(cat ~/.config/tidbyt/token)" \
   and it is what draws the wing fold — a 1px line traced parallel to the
   wing's leading edge. At 2px it stops reading as a line and starts reading
   as a hole punched in the bird.
-- The eye is found by flood fill, not by coordinates: it is the one unlit
-  region the border cannot reach — the logo's own beak notch — so it lands
-  correctly at every head angle with nothing to keep in sync. The sleeping
-  birds get none, on the grounds that they are asleep.
+- The beak is found by flood fill, not by coordinates. The logo has one unlit
+  region the border cannot reach — the notch behind the bill — and the lit run
+  just outboard of it is the bill itself, which the mark already draws in the
+  right shape and merely coloured the same coral as the bird. Giving it its
+  own pale tone is what every small flamingo sprite does and what this one was
+  missing; deriving it from the notch means it tracks the head at any angle
+  with nothing to keep in sync. The notch above it then serves as the dark
+  eye, which is the genre convention — a bright pupil there competed with the
+  bill and read as a glint.
+- A true black bill tip is unreachable here: at the outer end of the beak it
+  would border the background on three sides and vanish. The downward hook is
+  carried by shape alone.
+- Sleeping birds show no bill. The folded head turns that notch into a larger
+  enclosed region which reads as a pale blob, and a roosting flamingo tucks
+  its bill into its back anyway.
 - **Nothing may be black**, since the background is. A witch hat is purple.
   The one exception is unlit pixels *inside* a lit shape — the number strokes
   on the marathon bib work precisely because white surrounds them.

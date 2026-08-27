@@ -5,7 +5,7 @@ palette, pushed standalone by GitHub Actions — no home machine involved.
 
 | App | Preview | What it shows |
 |---|---|---|
-| **logo** | ![Logo preview](logo/preview.gif) | The Kaleidoscope Coffee mark: two flamingos leaning in over a pair of espresso cups, steam off the crema. They dress for the occasion, and they sleep when the shop is shut. |
+| **logo** | ![Logo preview](logo/preview.gif) | The Kaleidoscope Coffee mark: two flamingos leaning in over a pair of espresso cups, steam off the crema. They sleep when the shop is shut. |
 | **news** | — | Greenpoint headlines (Greenpointers + Brooklyn Paper RSS), vertical scroll, breaking-news state |
 | **weather** | ![Weather preview](weather/preview.gif) | Current temp, animated pixel-art conditions, daily high/low, precip chance (NWS + Open-Meteo blend, no API keys) |
 | **clock** | ![Clock preview](clock/preview.gif) | Gold digits, blinking colon, date, seconds bar *(experimental — see note)* |
@@ -42,14 +42,12 @@ pushing every 10 minutes, with the next scheduled run queued behind it. That
 is why it carries a `concurrency` block and a 355-minute timeout.
 
 The logo card looks like the easy case and isn't. Its artwork never changes,
-but what it *renders* does: it picks a costume from the date, and decides
-whether the birds are awake or asleep from the shop's opening hours. A pushed
-WebP is frozen until it is replaced, so the push cadence is what the card's
-accuracy depends on — birds still asleep at 10am would be worse than not
-having the feature. A costume only needs a daily push; an 8am open and a 5pm
-close do not. So `push-logo.yml` uses the same self-looping trick as the news
-app, pushing every 15 minutes, which bounds how stale the card can be at a
-boundary. Its animation is a 3.2-second seamless loop precisely because the
+but what it *renders* does: it decides whether the birds are awake or asleep
+from the shop's opening hours. A pushed WebP is frozen until it is replaced,
+so the push cadence is what the card's accuracy depends on — birds still
+asleep at 10am would be worse than not having the feature. So `push-logo.yml`
+uses the same self-looping trick as the news app, pushing every 15 minutes,
+which bounds how stale the card can be at a boundary. Its animation is a 3.2-second seamless loop precisely because the
 device only buffers a short chunk of a pushed WebP and replays it — anything
 longer would visibly stall (see the clock note below).
 
@@ -86,57 +84,11 @@ Hours live in `make_frames.py` and are baked into the app. Note that a pixlet
 time value has **no weekday attribute** — `now.format("Mon")` is how you get
 one.
 
-They still dress while they sleep, which is the intended behaviour: a
-flamingo roosting in a Santa hat is the best thing this card does all year.
-
 Force either state for a look:
 
 ```bash
-pixlet render logo/kaleidoscope.star state=asleep costume=santa --gif --magnify 6 -o /tmp/x.gif
+pixlet render logo/kaleidoscope.star state=asleep --gif --magnify 6 -o /tmp/x.gif
 ```
-
-### The logo card's wardrobe
-
-![costumes](logo/costumes.png)
-
-| When | Costume |
-|---|---|
-| 14 Feb | a heart between the two heads |
-| 17 Mar | green leprechaun hat, gold buckle |
-| Easter | a decorated egg between them |
-| 3 May | white-over-red caps — Polish Constitution Day, Greenpoint's own |
-| 1 Jun – 31 Aug | flower leis and a bloom at the ear |
-| 4 Jul | Uncle Sam hats |
-| 27–31 Oct | witch hats |
-| NYC Marathon | race bibs — one of the shop's biggest days |
-| Thanksgiving | pilgrim hats |
-| 1–30 Dec | Santa hats |
-| 31 Dec – 1 Jan | party hats and confetti |
-| everything else | undressed |
-
-Every wardrobe ships inside `kaleidoscope.star` and the app picks one from
-`time.now()` at render time. Verified that all 5,479 days from 2026 to 2040
-map to exactly one costume, and that narrow occasions beat the broad seasons
-they sit inside — the Fourth of July outranks the summer lei, New Year's Eve
-outranks Santa.
-
-Easter, Thanksgiving and the Marathon move around the calendar, so they are
-resolved to real dates by the generator and shipped as a lookup table.
-Computing them in Starlark would be a lot of arithmetic to get subtly wrong
-and no way to test it. Extend `MOVABLE_YEARS` before 2040.
-
-Preview one out of season without waiting a year:
-
-```bash
-pixlet render logo/kaleidoscope.star costume=halloween --gif --magnify 6 -o /tmp/x.gif
-```
-
-Costumes are transparent overlays stacked on the art and keyed by **pose**,
-not by frame: a costume only cares which way the head is turned, and there
-are four head positions awake plus one asleep, against 48 frames. Baking a full frame set per
-costume costs ~19KB of base64 each and does not scale to a wardrobe; this
-way each one costs a few hundred bytes. `logo/costumes.png` is regenerated
-by the same script, so the sheet above cannot drift from the code.
 
 ### Regenerating the logo card's frames
 
@@ -149,8 +101,7 @@ head and neck are split off as their own layer along a slanted cut and
 rotated about the neck base — and only then downscales to 26px, so every pose
 keeps the logo's true proportions. The bottom band (legs, perch line, cups,
 feet) is hand-authored pixel geometry instead, because at 26px the downscale
-smears it. Costumes anchor to the head's own downscaled bitmap so they ride
-the nod rather than floating where the head used to be. Edit the constants at
+smears it. Edit the constants at
 the top and re-run; it rewrites `logo/kaleidoscope.star` in place. Don't
 hand-edit the base64 blobs.
 
@@ -164,8 +115,8 @@ not the 1024×1024 export the crop constants were measured against, and fails
 again if the crop catches the wrong number of opaque pixels (a re-export that
 merely *shifted* the artwork passes a dimension check and silently crops 40%
 less of the mark). It asserts the loop invariants too — the steam wave must
-divide the frame count, the sprite must stay an odd width, every costume the
-calendar names must exist, and the frame after the last must render
+divide the frame count, the sprite must stay an odd width, the perch line
+must meet the cup handle, and the frame after the last must render
 byte-identical to the first.
 
 `logo/push.sh` pushes from a laptop, reading the API token from

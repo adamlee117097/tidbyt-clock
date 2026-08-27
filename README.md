@@ -128,12 +128,29 @@ This is the one script here that is not fork-friendly: it reads a source logo
 by absolute path from outside the repo. You don't need it to *run* the app —
 `kaleidoscope.star` is committed and self-contained — only to change the art.
 
+Things the generator refuses to do quietly, because each of them once
+produced valid-looking output that was wrong: it fails if the source logo is
+not the 1024×1024 export the crop constants were measured against, and fails
+again if the crop catches the wrong number of opaque pixels (a re-export that
+merely *shifted* the artwork passes a dimension check and silently crops 40%
+less of the mark). It asserts the loop invariants too — the steam wave must
+divide the frame count, the sprite must stay an odd width, every costume the
+calendar names must exist, and the frame after the last must render
+byte-identical to the first.
+
 `logo/push.sh` pushes from a laptop, reading the API token from
-`~/.config/tidbyt/token` and the device id from `~/.config/tidbyt/device_id`.
-Neither is ever written into a tracked file.
+`~/.config/tidbyt/token` and the device id from `~/.config/tidbyt/device_id`
+(both chmod 600). Neither is ever written into a tracked file. Remove the app
+from a device with:
+
+```bash
+pixlet delete "$(cat ~/.config/tidbyt/device_id)" logo
+```
 
 ### Things the panel taught us
 
+- The device this was designed against is mounted **portrait**, which is
+  worth knowing before judging any layout.
 - **1px lines do not read.** The matrix puts a black gutter between every
   diode, so a single-pixel leg becomes a column of separate dots and the bird
   looks like it is standing beside its legs. Legs are 2px. Judge pixel art by

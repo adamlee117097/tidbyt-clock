@@ -88,7 +88,7 @@ LEG_W = 2                  # NOT 1. A 1px leg is anatomically right and
 FOOT_W = 3
 FOOT_ROW = 23
 LEG_ROWS = range(BAND_TOP, FOOT_ROW)
-BAR_ROW = 20
+BAR_ROW = BAND_TOP + 2     # the row the cup's handle sits on
 # Perch line: only the stretch between the leg and the cup handle. The logo
 # runs it outboard of the legs too, but at this size that turns leg-plus-line
 # into a free-floating "+" that reads as a foreign object rather than a bird.
@@ -207,7 +207,14 @@ RIGHT_STEAM_PHASE = 4              # desync the two cups; mirrored steam
 # Sleep. One "z" drifting up the corridor between the birds -- a card with no
 # motion at all reads as a crashed display rather than a closed shop, and this
 # is the quietest motion that still says something.
-Z_ROWS = 8                         # rises from row 7 to row 0
+Z_ROWS = 8                         # eight steps of climb
+Z_FLOOR = 3                        # ...ending here, not at the panel edge. The
+                                   # valentine heart and the easter egg are
+                                   # single centred elements in the same three-
+                                   # column corridor, and the z is drawn last,
+                                   # so a z climbing to row 0 painted straight
+                                   # through them. Reordering the stack only
+                                   # swaps which mark gets holes punched in it.
 Z_HOLD = 6                         # frames per step; 8 x 6 = the 48-frame loop
 Z_OFFSETS = (0, 4)                 # two in flight. One reads as a lone mark;
                                    # three abut into a blue ladder, since each
@@ -221,6 +228,15 @@ TIMEZONE = "America/New_York"   # the shop's clock decides the season
 OPEN_HOUR = 8
 CLOSE_HOUR = {"Mon": 17, "Tue": 17, "Wed": 17, "Thu": 17,
               "Fri": 18, "Sat": 18, "Sun": 18}
+# These keys are matched against Go's weekday abbreviations, because that is
+# what now.format("Mon") returns. A typo does not raise: is_open()'s lookup
+# falls back to OPEN_HOUR, which reads as "shut all day", so one misspelled key
+# would silently sleep through a whole weekday every week. A day the shop
+# really is closed should be written as an explicit OPEN_HOUR value, so a
+# genuine closure and a typo stay distinguishable.
+assert set(CLOSE_HOUR) == {"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"}, (
+    "CLOSE_HOUR keys must be Go weekday abbreviations: %s" % sorted(CLOSE_HOUR))
+assert all(h >= OPEN_HOUR for h in CLOSE_HOUR.values()), "a day closes before it opens"
 
 
 def _layers():
@@ -403,12 +419,14 @@ def uncle_sam_hat(head):
     The stripes are two rows tall so they read as stripes rather than as a
     row of noise -- the same lesson the lei taught.
     """
-    top, c0, c1, cm = _anchor(head)
+    top, c0, c1, _ = _anchor(head)
+    # Derived from the span, never a fixed five columns: the skull is 5 wide at
+    # the four awake angles but 4 wide asleep, and hardcoded offsets there had
+    # later writes clobber both white stripes and leave a hole in the crown.
     stripes = []
     for row in (top - 1, top):
-        stripes += [(c0, row, SANTA_RED), (c0 + 1, row, SNOW),
-                    (cm, row, SANTA_RED), (c0 + 3, row, SNOW),
-                    (c1, row, SANTA_RED)]
+        stripes += [(c, row, SANTA_RED if (c - c0) % 2 == 0 else SNOW)
+                    for c in range(c0, c1 + 1)]
     return (stripes + _span(c0 - 1, c1 + 1, top + 1, BLUE)
             + _span(c0 - 2, c1 + 2, top + 2, SNOW)), []
 
@@ -424,7 +442,7 @@ def witch_hat(head):
     return ([(c0 + 1, top - 1, PURPLE)]
             + _span(c0, c0 + 2, top, PURPLE)
             + [(c0, top + 1, PURPLE), (c1, top + 1, PURPLE)]
-            + _span(c0 + 1, c0 + 3, top + 1, GOLD)
+            + _span(c0 + 1, min(c0 + 3, c1 - 1), top + 1, GOLD)
             + _span(c0 - 2, c1 + 2, top + 2, PURPLE)), []
 
 
@@ -600,7 +618,7 @@ def zed_overlay(step):
     m = MIRROR // 2
     for offset in Z_OFFSETS:
         i = (step + offset) % Z_ROWS
-        row = (Z_ROWS - 1) - i + TOP_MARGIN
+        row = (Z_ROWS - 1) - i + TOP_MARGIN + Z_FLOOR
         color = ZED[i] + (255,)
         for col in (m - 1, m, m + 1):                   # top and bottom bars
             for r in (row, row + 2):
@@ -635,8 +653,10 @@ shop.
 
 They also dress for the occasion. Both the costume and the sleeping are
 decided HERE, at render time, so a plain re-push always puts up the right
-thing without touching any code -- which is why this app is pushed daily
-while its artwork never changes.
+thing without touching any code. That is also why this app is pushed every
+fifteen minutes even though its artwork never changes: a pushed WebP is
+frozen until it is replaced, so the cadence is what bounds how stale the card
+can be at an 8am open or a 5pm close.
 
 Costumes are transparent overlays stacked on the art, keyed by POSE rather
 than by frame: a costume only cares which way the head is turned, and there
@@ -813,6 +833,45 @@ def main():
     assert draw_frame(NOD[BEATS[0]], n).tobytes() == frames[0].tobytes(), (
         "loop is not seamless: frame %d does not wrap onto frame 0" % (n - 1))
 
+    assert 13 in CUP[BAR_ROW], (
+        "the perch line must meet the cup handle: BAR_ROW %d is not the cup "
+        "row carrying column 13" % BAR_ROW)
+
+    # A costume that paints the same pixel twice in different colours is not
+    # expressing intent, it is a hardcoded offset that stopped fitting the
+    # head -- which is exactly how the striped Uncle Sam crown came to render
+    # as a solid block with a hole in it once the sleep pose made the skull a
+    # column narrower. UNLIT is exempt: the marathon bib deliberately knocks
+    # its numbers out of a field it has already laid down.
+    for name, costume in COSTUMES.items():
+        for angle in list(NOD) + [SLEEP_ANGLE]:
+            painted = {}
+            mirrored, absolute = costume(head_bitmap(angle))
+            strokes = [(c, r, k) for c, r, k in mirrored]
+            strokes += [(MIRROR - c, r, k) for c, r, k in mirrored]
+            strokes += list(absolute)
+            for col, row, color in strokes:
+                prev = painted.get((col, row))
+                assert prev in (None, color) or color == UNLIT, (
+                    "%s at angle %d repaints (%d,%d) from %s to %s"
+                    % (name, angle, col, row, prev, color))
+                painted[(col, row)] = color
+
+    # The sleeping z's climb the same narrow corridor the centred costumes
+    # occupy, and they are drawn last, so any overlap silently erases the
+    # costume rather than compositing with it.
+    zed_lit = set()
+    for step in range(Z_ROWS):
+        a = np.array(zed_overlay(step).split()[3])
+        zed_lit |= {(int(x), int(y)) for y, x in np.argwhere(a > 0)}
+    for name in COSTUMES:
+        a = np.array(costume_overlay(SLEEP_ANGLE, name).split()[3])
+        lit = {(int(x), int(y)) for y, x in np.argwhere(a > 0)}
+        clash = sorted(lit & zed_lit)
+        assert not clash, (
+            "the sleeping z's would paint over the %s costume at %s"
+            % (name, clash[:6]))
+
     named = set(MOVABLE.values()) | {w[2] for w in WINDOWS}
     missing = named - set(COSTUMES)
     assert not missing, (
@@ -833,7 +892,7 @@ def main():
         poses=repr(list(BEATS)),
         sleep=sleep,
         zeds=",\n".join('    "%s"' % b for b in zeds),
-        zeds_seq=repr([i // Z_HOLD for i in range(n)]),
+        zeds_seq=repr([(i // Z_HOLD) % Z_ROWS for i in range(n)]),
         sleep_pose=SLEEP_POSE,
         z_hold=Z_HOLD,
         open_hour=OPEN_HOUR,

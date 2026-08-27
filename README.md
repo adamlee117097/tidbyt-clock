@@ -174,7 +174,10 @@ byte-identical to the first.
 from a device with:
 
 ```bash
-pixlet delete "$(cat ~/.config/tidbyt/device_id)" logo
+# Disable push-logo.yml on the Actions tab first -- a run mid-loop will just
+# push it straight back, which looks like the delete failing.
+pixlet delete --api-token "$(cat ~/.config/tidbyt/token)" \
+  "$(cat ~/.config/tidbyt/device_id)" logo
 ```
 
 ### Things the panel taught us

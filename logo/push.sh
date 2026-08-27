@@ -1,10 +1,11 @@
 #!/bin/bash
 # One-shot push of the logo card to the Tidbyt.
 #
-# Unlike the news app there is nothing to keep fresh here -- every render is
-# byte-identical -- so this is a manual push, not a cron. Re-run it only after
-# editing make_frames.py (which rewrites kaleidoscope.star), or if the card
-# ever drops out of the device's rotation.
+# This is NOT the thing that keeps the card current -- push-logo.yml is, and
+# it runs every fifteen minutes. The artwork never changes, but the render
+# does: the costume comes from the date and awake-vs-asleep from the shop's
+# opening hours, both decided at render time. Use this for an out-of-band push
+# after regenerating kaleidoscope.star, or if the card drops out of rotation.
 #
 # The device id is read from disk rather than hardcoded: this repo is public,
 # and every workflow here already treats TIDBYT_DEVICE_ID as a secret, so a

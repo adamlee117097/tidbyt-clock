@@ -16,6 +16,8 @@ Tune the constants below and re-run:  python3 logo/make_frames.py
 import base64
 import datetime
 import io
+
+from collections import deque
 from pathlib import Path
 
 import numpy as np
@@ -30,6 +32,12 @@ CORAL = (242, 90, 60)      # brand #DF513B pushed up ~12% -- LEDs mute it
 DARK = (169, 58, 40)       # the perch line only, so the gold cups stay the
                            # brightest thing down there instead of fusing
                            # with it into one horizontal smear
+SHADOW = (168, 56, 40)     # the shape's lower edge, to give the mass a form
+                           # instead of a flat fill. Roughly 2:1 against coral
+                           # -- any closer and the panel washes the two together
+EYE = (250, 240, 225)      # a bright pupil dropped into the logo's beak notch
+WORDMARK_COLOR = (245, 245, 245)   # white: it separates the name from the birds
+                                   # instead of competing with them in coral
 GOLD = (236, 190, 94)      # the cups; same crema-gold as the shop dashboard
 # Steam, brightest at the cup rim and fading out as it climbs. Never white:
 # at panel brightness white steam out-shines the birds and the card stops
@@ -232,6 +240,36 @@ assert max(CUP) + TOP_MARGIN < CANVAS_H, "the cups fall off the canvas"
 assert min(CUP) == BAND_TOP, "the cup must start at the hand-authored band top"
 
 
+def _holes(grid):
+    """Unlit pixels the border cannot reach -- i.e. the logo's beak notch.
+
+    Found by flood fill rather than by fixed coordinates, so the eye lands
+    correctly at every head angle, including the tucked sleeping one, without
+    anything to keep in sync.
+    """
+    h, w = grid.shape
+    seen = np.zeros_like(grid)
+    queue = deque()
+    for r in range(h):
+        for c in (0, w - 1):
+            if not grid[r, c] and not seen[r, c]:
+                seen[r, c] = True
+                queue.append((r, c))
+    for c in range(w):
+        for r in (0, h - 1):
+            if not grid[r, c] and not seen[r, c]:
+                seen[r, c] = True
+                queue.append((r, c))
+    while queue:
+        r, c = queue.popleft()
+        for dr, dc in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            y, x = r + dr, c + dc
+            if 0 <= y < h and 0 <= x < w and not grid[y, x] and not seen[y, x]:
+                seen[y, x] = True
+                queue.append((y, x))
+    return (~grid) & (~seen)
+
+
 def _downscale(gray):
     """Source-resolution layer -> the sprite grid, thresholded."""
     im = gray.crop((0, 0, SRC_W, LEG_TRIM))
@@ -261,7 +299,7 @@ def bird_bitmap(angle):
     return grid
 
 
-def draw_frame(angle, tick, steam=True):
+def draw_frame(angle, tick, steam=True, eye=True):
     img = Image.new("RGB", (CANVAS_W, CANVAS_H), (0, 0, 0))
     px = img.load()
 
@@ -270,10 +308,26 @@ def draw_frame(angle, tick, steam=True):
         if 0 <= y < CANVAS_H and 0 <= col < BIRD_W:
             px[OX + col, y] = color
 
-    for y, row in enumerate(bird_bitmap(angle)):
-        for x, on in enumerate(row):
-            if on:
-                put(x, y, CORAL)
+    grid = bird_bitmap(angle)
+    rows, cols = grid.shape
+    legs = {LEG_COL + i for i in range(LEG_W)}
+    legs |= {MIRROR - c for c in legs}
+    for y in range(rows):
+        for x in range(cols):
+            if not grid[y, x]:
+                continue
+            # Shade the shape's lower edge -- but never in the leg columns.
+            # Darkening the belly directly above a leg re-creates the detached
+            # look the 2px legs were widened to fix.
+            bottom = y + 1 >= rows or not grid[y + 1, x]
+            put(x, y, SHADOW if (bottom and x not in legs) else CORAL)
+
+    if eye:                                     # one eye per bird; a roosting
+        holes = _holes(grid)                    # flamingo has its eyes shut
+        for half in (range(MIRROR // 2), range(MIRROR // 2, cols)):
+            lit = [(int(r), int(c)) for c in half for r in np.where(holes[:, c])[0]]
+            if lit:
+                put(min(lit)[1], min(lit)[0], EYE)
 
     # Perch line first, legs over it: drawn the other way round its dark
     # pixel lands on top of the leg at any crossing and severs it.
@@ -361,7 +415,7 @@ load("encoding/base64.star", "base64")
 load("time.star", "time")
 
 WORDMARK = "KALEIDOSCOPE"
-CORAL = "{coral}"
+WORDMARK_COLOR = "{wordmark_color}"
 DELAY_MS = {delay}
 TZ = "{tz}"
 
@@ -429,7 +483,7 @@ def main(config):
                     child = render.Text(
                         content = WORDMARK,
                         font = "tom-thumb",
-                        color = CORAL,
+                        color = WORDMARK_COLOR,
                     ),
                 ),
             ],
@@ -456,7 +510,7 @@ def main():
         % (Z_ROWS, Z_HOLD, n))
 
     blobs = [encode(f) for f in frames]
-    sleep = encode(draw_frame(SLEEP_ANGLE, 0, steam=False))
+    sleep = encode(draw_frame(SLEEP_ANGLE, 0, steam=False, eye=False))
     zeds = [encode(zed_overlay(i)) for i in range(Z_ROWS)]
 
     OUT_STAR.write_text(TEMPLATE.format(
@@ -467,7 +521,7 @@ def main():
         z_hold=Z_HOLD,
         open_hour=OPEN_HOUR,
         close_hour=repr(CLOSE_HOUR),
-        coral="#%02X%02X%02X" % CORAL,
+        wordmark_color="#%02X%02X%02X" % WORDMARK_COLOR,
         delay=DELAY_MS,
         last=n - 1,
         tz=TIMEZONE,

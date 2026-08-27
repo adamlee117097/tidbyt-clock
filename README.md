@@ -140,8 +140,14 @@ pixlet delete --api-token "$(cat ~/.config/tidbyt/token)" \
   looks like it is standing beside its legs. Legs are 2px. Judge pixel art by
   simulating those gutters, not by magnifying a render.
 - Two shades of one hue barely separate at panel brightness — don't rely on
-  it to carry a shape. A caramel pilgrim hat on a coral bird needed a white
-  band across it before it stopped reading as a smudge.
+  it to carry a *shape*. It is fine for shading a shape you have already
+  established: the birds' lower edges are a darker coral at about 2:1 against
+  the body, which gives the mass some form without risking the silhouette.
+  Anything load-bearing needs a real value gap.
+- The eye is found by flood fill, not by coordinates: it is the one unlit
+  region the border cannot reach — the logo's own beak notch — so it lands
+  correctly at every head angle with nothing to keep in sync. The sleeping
+  birds get none, on the grounds that they are asleep.
 - **Nothing may be black**, since the background is. A witch hat is purple.
   The one exception is unlit pixels *inside* a lit shape — the number strokes
   on the marathon bib work precisely because white surrounds them.

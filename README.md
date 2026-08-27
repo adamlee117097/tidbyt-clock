@@ -5,7 +5,7 @@ palette, pushed standalone by GitHub Actions — no home machine involved.
 
 | App | Preview | What it shows |
 |---|---|---|
-| **logo** | ![Logo preview](logo/preview.gif) | The Kaleidoscope Coffee mark: two flamingos leaning in over a pair of espresso cups, steam off the crema. They dress for the season. |
+| **logo** | ![Logo preview](logo/preview.gif) | The Kaleidoscope Coffee mark: two flamingos leaning in over a pair of espresso cups, steam off the crema. They dress for the occasion, and they sleep when the shop is shut. |
 | **news** | — | Greenpoint headlines (Greenpointers + Brooklyn Paper RSS), vertical scroll, breaking-news state |
 | **weather** | ![Weather preview](weather/preview.gif) | Current temp, animated pixel-art conditions, daily high/low, precip chance (NWS + Open-Meteo blend, no API keys) |
 | **clock** | ![Clock preview](clock/preview.gif) | Gold digits, blinking colon, date, seconds bar *(experimental — see note)* |
@@ -41,12 +41,17 @@ every 1–3 hours, so `push-news.yml` keeps a single run alive for ~5.5 hours
 pushing every 10 minutes, with the next scheduled run queued behind it. That
 is why it carries a `concurrency` block and a 355-minute timeout.
 
-The logo card sits in between. Its art never changes, but it picks a costume
-from the date when it renders — so the push, not the app, is what moves the
-birds out of Santa hats and into leis. `push-logo.yml` runs once a day for
-exactly that reason. Its animation is a 3.2-second seamless loop precisely
-because the device only buffers a short chunk of a pushed WebP and replays
-it — anything longer would visibly stall (see the clock note below).
+The logo card looks like the easy case and isn't. Its artwork never changes,
+but what it *renders* does: it picks a costume from the date, and decides
+whether the birds are awake or asleep from the shop's opening hours. A pushed
+WebP is frozen until it is replaced, so the push cadence is what the card's
+accuracy depends on — birds still asleep at 10am would be worse than not
+having the feature. A costume only needs a daily push; an 8am open and a 5pm
+close do not. So `push-logo.yml` uses the same self-looping trick as the news
+app, pushing every 15 minutes, which bounds how stale the card can be at a
+boundary. Its animation is a 3.2-second seamless loop precisely because the
+device only buffers a short chunk of a pushed WebP and replays it — anything
+longer would visibly stall (see the clock note below).
 
 The clock is harder: it pre-renders future frames at 1 fps so the display
 ticks between pushes, but **stock Tidbyt hardware only buffers a small
@@ -64,6 +69,31 @@ pixlet render weather/weather.star --gif --magnify 8 -o preview.gif
 
 Pixlet quirk: keep each app in its own directory — two `.star` files in
 one folder confuse the loader.
+
+### Opening hours
+
+Outside shop hours the birds sleep: heads folded back over their bodies, no
+steam because the machines are off, and a pair of "z"s drifting up between
+them. A closed card with no motion at all would read as a crashed display
+rather than a shut shop, so the z's are doing real work.
+
+| | Open |
+|---|---|
+| Mon–Thu | 8am – 5pm |
+| Fri–Sun | 8am – 6pm |
+
+Hours live in `make_frames.py` and are baked into the app. Note that a pixlet
+time value has **no weekday attribute** — `now.format("Mon")` is how you get
+one.
+
+They still dress while they sleep, which is the intended behaviour: a
+flamingo roosting in a Santa hat is the best thing this card does all year.
+
+Force either state for a look:
+
+```bash
+pixlet render logo/kaleidoscope.star state=asleep costume=santa --gif --magnify 6 -o /tmp/x.gif
+```
 
 ### The logo card's wardrobe
 
@@ -103,7 +133,7 @@ pixlet render logo/kaleidoscope.star costume=halloween --gif --magnify 6 -o /tmp
 
 Costumes are transparent overlays stacked on the art and keyed by **pose**,
 not by frame: a costume only cares which way the head is turned, and there
-are four head positions against 48 frames. Baking a full frame set per
+are four head positions awake plus one asleep, against 48 frames. Baking a full frame set per
 costume costs ~19KB of base64 each and does not scale to a wardrobe; this
 way each one costs a few hundred bytes. `logo/costumes.png` is regenerated
 by the same script, so the sheet above cannot drift from the code.

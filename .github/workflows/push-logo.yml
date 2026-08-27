@@ -1,27 +1,38 @@
 name: Push Kaleidoscope logo card to Tidbyt
 
-# Daily, and the frequency is the whole point: the app picks its costume from
-# the date at RENDER time, so the only thing that moves the birds out of their
-# Santa hats and into leis is a re-push. A static card would need no cron at
-# all -- this one needs one per day. Cheap: one ~40s job, free on a public
-# repo. GitHub throttles sub-hourly crons but honours daily ones.
+# The artwork here never changes -- but what the app RENDERS does. It picks a
+# costume from the date and, more demandingly, decides whether the birds are
+# awake or asleep from the shop's opening hours. A pushed WebP is frozen until
+# it is replaced, so the push cadence is what the card's accuracy actually
+# depends on: birds still sleeping at 10am would be worse than no feature.
+#
+# GitHub throttles free-tier cron to roughly every 1-3 hours in practice, which
+# cannot be relied on to catch an 8am open or a 5pm close. So this borrows the
+# news app's pattern: each run keeps itself alive for ~5.5h pushing every 15
+# minutes, and the next scheduled run queues behind it (cancel-in-progress must
+# stay false).
 on:
   schedule:
-    - cron: "17 9 * * *"
+    - cron: "*/30 * * * *"
   workflow_dispatch:
 
 permissions:
   contents: read
   actions: write
 
+concurrency:
+  group: push-logo
+  cancel-in-progress: false
+
 jobs:
   push:
     runs-on: ubuntu-latest
+    timeout-minutes: 355
     steps:
       - uses: actions/checkout@v4
 
-      # Runs FIRST so a later failure can't skip it -- this is what stops
-      # GitHub auto-disabling the schedule after 60 days of no commits.
+      # Runs FIRST so a later render/push failure can't skip it: this is what
+      # stops GitHub auto-disabling the schedule after 60 days.
       - name: Keepalive
         run: gh api -X PUT "repos/${GITHUB_REPOSITORY}/actions/workflows/push-logo.yml/enable"
         env:
@@ -30,10 +41,24 @@ jobs:
       - name: Install pixlet
         run: curl -sL https://github.com/tidbyt/pixlet/releases/download/v0.34.0/pixlet_0.34.0_linux_amd64.tar.gz | tar xz
 
-      - name: Render and push
+      # One transient failure must not kill the remaining iterations -- the
+      # next scheduled run can be hours away. On a render failure, re-push the
+      # previous webp so the device at least keeps showing something.
+      - name: Render and push every 15 minutes
         run: |
-          ./pixlet render logo/kaleidoscope.star -o logo.webp
-          ./pixlet push \
-            --api-token "${{ secrets.TIDBYT_API_TOKEN }}" \
-            --installation-id logo \
-            "${{ secrets.TIDBYT_DEVICE_ID }}" logo.webp
+          for i in $(seq 1 22); do
+            if ./pixlet render logo/kaleidoscope.star -o fresh.webp; then
+              mv fresh.webp logo.webp
+            else
+              echo "render $i FAILED, reusing previous webp"
+            fi
+            if [ -f logo.webp ]; then
+              ./pixlet push \
+                --api-token "${{ secrets.TIDBYT_API_TOKEN }}" \
+                --installation-id logo \
+                "${{ secrets.TIDBYT_DEVICE_ID }}" logo.webp \
+                && echo "push $i OK $(date -u +%H:%M)" \
+                || echo "push $i FAILED"
+            fi
+            if [ "$i" -lt 22 ]; then sleep 900; fi
+          done

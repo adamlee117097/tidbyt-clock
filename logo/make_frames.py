@@ -36,6 +36,11 @@ SHADOW = (168, 56, 40)     # the shape's lower edge, to give the mass a form
                            # instead of a flat fill. Roughly 2:1 against coral
                            # -- any closer and the panel washes the two together
 EYE = (250, 240, 225)      # a bright pupil dropped into the logo's beak notch
+UNLIT = (0, 0, 0)          # the wing fold. Black is invisible AGAINST black,
+                           # but inside a lit shape it is the strongest mark
+                           # available -- the one place black works here
+WING_INSET = 3             # columns in from the wing's leading edge
+WING_ROWS = range(10, 16)  # where that edge runs straight enough to trace
 WORDMARK_COLOR = (245, 245, 245)   # white: it separates the name from the birds
                                    # instead of competing with them in coral
 GOLD = (236, 190, 94)      # the cups; same crema-gold as the shop dashboard
@@ -299,7 +304,7 @@ def bird_bitmap(angle):
     return grid
 
 
-def draw_frame(angle, tick, steam=True, eye=True):
+def draw_frame(angle, tick, awake=True):
     img = Image.new("RGB", (CANVAS_W, CANVAS_H), (0, 0, 0))
     px = img.load()
 
@@ -322,7 +327,19 @@ def draw_frame(angle, tick, steam=True, eye=True):
             bottom = y + 1 >= rows or not grid[y + 1, x]
             put(x, y, SHADOW if (bottom and x not in legs) else CORAL)
 
-    if eye:                                     # one eye per bird; a roosting
+    # A 1px fold traced parallel to the wing's leading edge. 2px was tried and
+    # reads as a hole punched in the bird rather than as a line.
+    half = MIRROR // 2
+    for row in WING_ROWS:
+        lit = [c for c in range(half) if grid[row, c]]
+        if not lit:
+            continue
+        col = min(lit) + WING_INSET
+        if col < half and grid[row, col]:
+            put(col, row, UNLIT)
+            put(MIRROR - col, row, UNLIT)
+
+    if awake:                                   # one eye per bird; a roosting
         holes = _holes(grid)                    # flamingo has its eyes shut
         for half in (range(MIRROR // 2), range(MIRROR // 2, cols)):
             lit = [(int(r), int(c)) for c in half for r in np.where(holes[:, c])[0]]
@@ -330,10 +347,12 @@ def draw_frame(angle, tick, steam=True, eye=True):
                 put(min(lit)[1], min(lit)[0], EYE)
 
     # Perch line first, legs over it: drawn the other way round its dark
-    # pixel lands on top of the leg at any crossing and severs it.
-    for col in BAR_COLS:                                # perch line
-        put(col, BAR_ROW, DARK)
-        put(MIRROR - col, BAR_ROW, DARK)
+    # pixel lands on top of the leg at any crossing and severs it. It goes
+    # with the cups -- on its own it is a stub joining a leg to nothing.
+    if awake:
+        for col in BAR_COLS:                            # perch line
+            put(col, BAR_ROW, DARK)
+            put(MIRROR - col, BAR_ROW, DARK)
 
     for i in range(LEG_W):                              # legs
         for row in LEG_ROWS:
@@ -343,12 +362,13 @@ def draw_frame(angle, tick, steam=True, eye=True):
         put(LEG_COL + i, FOOT_ROW, CORAL)
         put(MIRROR - LEG_COL - i, FOOT_ROW, CORAL)
 
-    for row, cols in CUP.items():                       # the two espresso cups
-        for col in cols:
-            put(col, row, GOLD)
-            put(MIRROR - col, row, GOLD)
+    if awake:               # cups come off the counter when the shop shuts
+        for row, cols in CUP.items():                   # the two espresso cups
+            for col in cols:
+                put(col, row, GOLD)
+                put(MIRROR - col, row, GOLD)
 
-    if not steam:              # machines off -- no steam when the shop is shut
+    if not awake:              # machines off -- no steam when the shop is shut
         return img
 
     n = len(STEAM_WAVE)
@@ -510,7 +530,7 @@ def main():
         % (Z_ROWS, Z_HOLD, n))
 
     blobs = [encode(f) for f in frames]
-    sleep = encode(draw_frame(SLEEP_ANGLE, 0, steam=False, eye=False))
+    sleep = encode(draw_frame(SLEEP_ANGLE, 0, awake=False))
     zeds = [encode(zed_overlay(i)) for i in range(Z_ROWS)]
 
     OUT_STAR.write_text(TEMPLATE.format(

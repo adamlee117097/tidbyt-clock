@@ -70,9 +70,9 @@ one folder confuse the loader.
 
 ### Opening hours
 
-Outside shop hours the birds sleep: heads folded back over their bodies, no
-steam because the machines are off, and a pair of "z"s drifting up between
-them. A closed card with no motion at all would read as a crashed display
+Outside shop hours the birds sleep: heads folded back over their bodies, eyes
+shut, the cups and the counter they sat on cleared away, no steam because the
+machines are off, and a pair of "z"s drifting up between them. A closed card with no motion at all would read as a crashed display
 rather than a shut shop, so the z's are doing real work.
 
 | | Open |
@@ -144,6 +144,11 @@ pixlet delete --api-token "$(cat ~/.config/tidbyt/token)" \
   established: the birds' lower edges are a darker coral at about 2:1 against
   the body, which gives the mass some form without risking the silhouette.
   Anything load-bearing needs a real value gap.
+- Black is invisible *against* black, but black *inside* a lit shape is the
+  strongest mark available. That is the only way an unlit pixel works here,
+  and it is what draws the wing fold — a 1px line traced parallel to the
+  wing's leading edge. At 2px it stops reading as a line and starts reading
+  as a hole punched in the bird.
 - The eye is found by flood fill, not by coordinates: it is the one unlit
   region the border cannot reach — the logo's own beak notch — so it lands
   correctly at every head angle with nothing to keep in sync. The sleeping

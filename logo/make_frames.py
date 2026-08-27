@@ -14,11 +14,12 @@ those rows are cleared and redrawn as explicit 1px geometry.
 Tune the constants below and re-run:  python3 logo/make_frames.py
 """
 import base64
+import datetime
 import io
 from pathlib import Path
 
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageDraw
 
 HERE = Path(__file__).resolve().parent
 LOGO = Path("/home/adam/Documents/Kaleidoscope/logo.png")
@@ -124,9 +125,74 @@ STEAM_LEN = len(STEAM)             # wisp height in rows
 # this size a costume only reads if it contrasts with the bird wearing it.
 SANTA_RED = (198, 40, 34)
 SNOW = (238, 236, 232)
-LEI_PETALS = [(255, 95, 162), (255, 211, 77)]   # hibiscus pink, frangipani
+PINK = (255, 95, 162)
+YELLOW = (255, 211, 77)
+BLUE = (59, 110, 245)
+GREEN = (47, 190, 76)
+PURPLE = (154, 77, 224)      # never black -- the background is black
+CRIMSON = (212, 33, 61)      # Polish flag red, kept distinct from Santa's
+CARAMEL = (176, 123, 54)     # a true pilgrim brown would vanish
+UNLIT = (0, 0, 0)            # only ever inside a lit shape, never on black
+LEI_PETALS = [PINK, YELLOW]  # hibiscus, frangipani
 PLAIN, SANTA, LEI = "plain", "santa", "lei"
-SEASONS = (PLAIN, SANTA, LEI)
+NEWYEAR, VALENTINE, STPAT, EASTER = "newyear", "valentine", "stpat", "easter"
+POLISH, JULY4, HALLOWEEN = "polish", "july4", "halloween"
+MARATHON, THANKSGIVING = "marathon", "thanksgiving"
+
+# Occasions that move around the calendar, resolved to real dates here rather
+# than recomputed in Starlark, where the arithmetic would be easy to get subtly
+# wrong and impossible to test. Regenerate by re-running this script; extend
+# MOVABLE_YEARS before the table runs out.
+MOVABLE_YEARS = range(2026, 2041)
+
+
+def _easter(year):
+    """Gregorian Easter -- Meeus/Jones/Butcher."""
+    a, b, c = year % 19, year // 100, year % 100
+    d, e = b // 4, b % 4
+    f = (b + 8) // 25
+    g = (b - f + 1) // 3
+    h = (19 * a + b - d - g + 15) % 30
+    i, k = c // 4, c % 4
+    l = (32 + 2 * e + 2 * i - h - k) % 7
+    m = (a + 11 * h + 22 * l) // 451
+    month = (h + l - 7 * m + 114) // 31
+    return datetime.date(year, month, ((h + l - 7 * m + 114) % 31) + 1)
+
+
+def _nth_weekday(year, month, weekday, n):
+    """The nth <weekday> of a month; weekday 0=Monday per date.weekday()."""
+    first = datetime.date(year, month, 1)
+    offset = (weekday - first.weekday()) % 7
+    return first + datetime.timedelta(days=offset + 7 * (n - 1))
+
+
+def _movable():
+    out = {}
+    for y in MOVABLE_YEARS:
+        out[_easter(y).isoformat()] = EASTER
+        # Thanksgiving: fourth Thursday of November.
+        out[_nth_weekday(y, 11, 3, 4).isoformat()] = THANKSGIVING
+        # The NYC Marathon runs the first Sunday in November, and it is one of
+        # the shop's biggest days of the year.
+        out[_nth_weekday(y, 11, 6, 1).isoformat()] = MARATHON
+    return out
+
+
+MOVABLE = _movable()
+
+# (start_MMDD, end_MMDD, costume). First match wins, so a narrow occasion must
+# be listed before any broad season it sits inside.
+WINDOWS = [
+    (1231, 101, NEWYEAR),      # wraps the year boundary
+    (1201, 1230, SANTA),       # ...so Santa yields to it on the 31st
+    (1027, 1031, HALLOWEEN),
+    (704, 704, JULY4),         # inside the lei window, so it must precede it
+    (503, 503, POLISH),        # Polish Constitution Day -- Greenpoint's own
+    (317, 317, STPAT),
+    (214, 214, VALENTINE),
+    (601, 831, LEI),
+]
 STEAM_WAVE = [0, 0, 1, 1, 0, 0, -1, -1]   # length 8 divides 48 -> seamless
 RIGHT_STEAM_PHASE = 4              # desync the two cups; mirrored steam
                                    # looks mechanical rather than alive
@@ -227,46 +293,190 @@ def head_bitmap(angle):
     return _HEAD_CACHE[angle]
 
 
-def santa_hat(head):
-    """A red cone with a white brim and a pom lolling back off the skull.
-
-    It replaces the top of the head rather than sitting above it -- which is
-    where a hat goes anyway, and there is no room above: the skull already
-    reaches the first row of the canvas.
-    """
+def _anchor(head):
+    """Where the skull is right now: top row, its column span, its centre."""
     rows = np.where(head.any(axis=1))[0]
     top = int(rows.min())
     cols = np.where(head[top])[0]
     c0, c1 = int(cols.min()), int(cols.max())
-    out = [(c0 - 1, top - 1, SNOW)]                        # pom, lolling back
-    out += [(c, top - 1, SANTA_RED) for c in (c0, c0 + 1)]  # tip
-    out += [(c, top, SANTA_RED) for c in range(c0, c1 + 1)]
-    out += [(c, top + 1, SNOW) for c in range(c0 - 1, c1 + 2)]  # brim
-    return out
+    return top, c0, c1, (c0 + c1) // 2
+
+
+def _span(a, b, row, color):
+    return [(c, row, color) for c in range(a, b + 1)]
+
+
+def santa_hat(head):
+    """Red cone, white brim, pom lolling back off the skull.
+
+    Every hat here replaces the top of the skull rather than sitting above
+    it -- which is where a hat goes anyway, and is the only option: the head
+    already reaches the first row of the canvas, leaving exactly one row
+    (top-1) to poke into. Rows top+3..top+5 are the beak and eye and are
+    never painted over, or the bird stops reading as a flamingo.
+    """
+    top, c0, c1, _ = _anchor(head)
+    return ([(c0 - 1, top - 1, SNOW)]
+            + [(c, top - 1, SANTA_RED) for c in (c0, c0 + 1)]
+            + _span(c0, c1, top, SANTA_RED)
+            + _span(c0 - 1, c1 + 1, top + 1, SNOW)), []
+
+
+def party_hat(head):
+    """New Year: a tapering cone with a gold knob, and actual confetti.
+
+    Confetti is meant to be single-pixel noise -- that is what confetti is --
+    and it rides the nod, which reads as stuck to the bird rather than wrong.
+    """
+    top, c0, c1, cm = _anchor(head)
+    return ([(cm, top - 1, GOLD)]
+            + _span(c0 + 1, c0 + 3, top, BLUE)
+            + _span(c0, c1, top + 1, BLUE)
+            + [(c0 - 3, top, YELLOW), (c0 - 4, top + 3, PINK),
+               (c0 - 2, top + 5, SNOW), (c1 + 2, top + 2, YELLOW)]), []
+
+
+def heart(head):
+    """Valentine's: ONE heart between the two heads, not one per bird.
+
+    Three wide and confined to rows -1..1, because the gap between the heads
+    narrows from nine columns at rest to three at full lean. At full lean the
+    crowns just touch its lobes, which reads as nuzzling.
+    """
+    m = MIRROR // 2
+    return [], ([(m - 1, -1, PINK), (m + 1, -1, PINK)]
+                + _span(m - 1, m + 1, 0, PINK)
+                + _span(m - 1, m + 1, 1, PINK)
+                + [(m, 2, PINK)])
+
+
+def leprechaun_hat(head):
+    """St Patrick's: Santa's proven geometry, one saturated hue, gold buckle."""
+    top, c0, c1, cm = _anchor(head)
+    crown = [(c, top, GREEN) for c in range(c0, c1 + 1) if c != cm]
+    return (_span(c0, c1, top - 1, GREEN) + crown + [(cm, top, GOLD)]
+            + _span(c0 - 1, c1 + 1, top + 1, GREEN)), []
+
+
+def easter_egg(head):
+    """Easter: a decorated egg between the birds, not a hat.
+
+    Bunny ears were tried first and abandoned: three rows is not enough
+    height for two prongs to separate, so they read as a notched white crown
+    rather than as ears. The centred slot the heart uses is free, an egg is
+    as iconic as ears, and white-with-a-band has far more contrast than
+    anything wearable at this size.
+    """
+    m = MIRROR // 2
+    return [], ([(m, -1, SNOW)]
+                + _span(m - 1, m + 1, 0, SNOW)
+                + _span(m - 1, m + 1, 1, PINK)
+                + _span(m - 1, m + 1, 2, SNOW))
+
+
+def uncle_sam_hat(head):
+    """Independence Day: striped crown, blue band, wide white brim.
+
+    The stripes are two rows tall so they read as stripes rather than as a
+    row of noise -- the same lesson the lei taught.
+    """
+    top, c0, c1, cm = _anchor(head)
+    stripes = []
+    for row in (top - 1, top):
+        stripes += [(c0, row, SANTA_RED), (c0 + 1, row, SNOW),
+                    (cm, row, SANTA_RED), (c0 + 3, row, SNOW),
+                    (c1, row, SANTA_RED)]
+    return (stripes + _span(c0 - 1, c1 + 1, top + 1, BLUE)
+            + _span(c0 - 2, c1 + 2, top + 2, SNOW)), []
+
+
+def witch_hat(head):
+    """Halloween: purple, never black, tip bent back over the bird's rear.
+
+    The 1-3-5-9 taper with an off-centre apex is the witch-hat gestalt; the
+    gold band gives the dim purple a bright internal edge so the hat parts
+    from both the black sky and the coral face.
+    """
+    top, c0, c1, _ = _anchor(head)
+    return ([(c0 + 1, top - 1, PURPLE)]
+            + _span(c0, c0 + 2, top, PURPLE)
+            + [(c0, top + 1, PURPLE), (c1, top + 1, PURPLE)]
+            + _span(c0 + 1, c0 + 3, top + 1, GOLD)
+            + _span(c0 - 2, c1 + 2, top + 2, PURPLE)), []
+
+
+def pilgrim_hat(head):
+    """Thanksgiving: caramel capotain with a gold band and a buckle glint.
+
+    A true pilgrim brown vanishes against black, and caramel is only about
+    1.6:1 in value against coral, so the crown alone reads as a warm smudge.
+    A gold band did not rescue it -- gold on caramel is warm on warm. The
+    white band does, by putting the set's highest-contrast colour across the
+    middle of the hat, with the gold kept for the buckle alone.
+    """
+    top, c0, c1, cm = _anchor(head)
+    band = [(c, top + 1, SNOW) for c in range(c0 - 1, c1 + 2) if c != cm]
+    return (_span(c0, c1, top - 1, CARAMEL) + _span(c0, c1, top, CARAMEL)
+            + band + [(cm, top + 1, GOLD)]        # buckle
+            + _span(c0 - 2, c1 + 2, top + 2, CARAMEL)), []
+
+
+def polish_cap(head):
+    """3 May: white over red, in that order, because that IS the flag."""
+    top, c0, c1, cm = _anchor(head)
+    return ([(cm, top - 1, SNOW)] + _span(c0, c1, top, SNOW)
+            + _span(c0 - 1, c1 + 1, top + 1, CRIMSON)), []
+
+
+def race_bib(head):
+    """Marathon: a bib pinned to the chest -- anchored to the body, not the
+    head, so it does not ride the nod.
+
+    The largest single costume element in the set. The unlit number strokes
+    work here precisely because they sit inside a white field: black fails on
+    black, but it is maximum contrast inside a lit shape.
+    """
+    out = _span(8, 12, 12, BLUE)
+    for row in (13, 14, 15):
+        out += _span(8, 12, row, SNOW)
+    out += [(c, r, UNLIT) for c in (9, 11) for r in (13, 14)]
+    return out, []
 
 
 def lei(head):
-    """A flower garland round the neck, plus one bloom at the ear.
+    """A flower garland round the neck, with a bloom at the ear.
 
-    The neck is only three pixels wide, so a single row of three different
-    colours just reads as noise -- it needs two rows to register as an object
-    at all. The ear flower is what actually says "tropical" at a glance; the
-    garland alone is ambiguous.
+    Two rows, not one: three pixels of alternating colour on a 3px neck read
+    as noise rather than as an object. And one hue, not two -- alternating
+    colours inside a shape this small dissolve it again. The colour play
+    belongs in the bloom, which is big enough to hold it.
     """
     rows = np.where(head.any(axis=1))[0]
     top, base = int(rows.min()), int(rows.max())
     out = []
-    for i, row in enumerate((base - 1, base)):
+    for row in (base - 1, base):
         cols = np.where(head[row])[0]
-        for j, c in enumerate(range(int(cols.min()), int(cols.max()) + 1)):
-            out.append((c, row, LEI_PETALS[(i + j) % 2]))
-    ear = np.where(head[top + 2])[0]
-    out += [(int(ear.min()), top + 2, LEI_PETALS[0]),
-            (int(ear.min()) + 1, top + 2, LEI_PETALS[1])]
-    return out
+        out += _span(int(cols.min()), int(cols.max()), row, PINK)
+    ear = int(np.where(head[top + 2])[0].min())
+    out += [(ear, top + 2, PINK), (ear + 1, top + 2, PINK),
+            (ear, top + 3, PINK), (ear + 1, top + 3, YELLOW)]
+    return out, []
 
 
-COSTUMES = {PLAIN: lambda head: [], SANTA: santa_hat, LEI: lei}
+COSTUMES = {
+    PLAIN: lambda head: ([], []),
+    SANTA: santa_hat,
+    LEI: lei,
+    NEWYEAR: party_hat,
+    VALENTINE: heart,
+    STPAT: leprechaun_hat,
+    EASTER: easter_egg,
+    JULY4: uncle_sam_hat,
+    HALLOWEEN: witch_hat,
+    THANKSGIVING: pilgrim_hat,
+    POLISH: polish_cap,
+    MARATHON: race_bib,
+}
 
 
 def bird_bitmap(angle):
@@ -288,7 +498,7 @@ def bird_bitmap(angle):
     return grid
 
 
-def draw_frame(angle, tick, season=PLAIN):
+def draw_frame(angle, tick):
     img = Image.new("RGB", (CANVAS_W, CANVAS_H), (0, 0, 0))
     px = img.load()
 
@@ -321,10 +531,6 @@ def draw_frame(angle, tick, season=PLAIN):
             put(col, row, GOLD)
             put(MIRROR - col, row, GOLD)
 
-    for col, row, color in COSTUMES[season](head_bitmap(angle)):
-        put(col, row, color)                    # left bird
-        put(MIRROR - col, row, color)           # and its mirror
-
     n = len(STEAM_WAVE)
     for k in range(STEAM_LEN):                          # steam off the crema
         wave = STEAM_WAVE[(k + tick) % n]
@@ -334,10 +540,40 @@ def draw_frame(angle, tick, season=PLAIN):
     return img
 
 
+def costume_overlay(angle, season):
+    """One costume, one pose, on transparent film.
+
+    Costumes are stacked over the art rather than drawn into it because they
+    depend only on the POSE -- of which there are four -- while the art
+    depends on the frame, of which there are 48. Baking each costume into a
+    full 48-frame set costs ~19KB of base64 apiece and does not scale to a
+    wardrobe; four transparent overlays cost a few hundred bytes.
+    """
+    img = Image.new("RGBA", (CANVAS_W, CANVAS_H), (0, 0, 0, 0))
+    px = img.load()
+
+    def put(col, row, color):
+        y = row + TOP_MARGIN
+        if 0 <= y < CANVAS_H and 0 <= col < BIRD_W:
+            px[OX + col, y] = color + (255,)
+
+    mirrored, absolute = COSTUMES[season](head_bitmap(angle))
+    for col, row, color in mirrored:
+        put(col, row, color)                    # left bird
+        put(MIRROR - col, row, color)           # and its mirror
+    for col, row, color in absolute:            # single centred elements
+        if 0 <= row + TOP_MARGIN < CANVAS_H and 0 <= OX + col < CANVAS_W:
+            px[OX + col, row + TOP_MARGIN] = color + (255,)
+    return img
+
+
 def encode(img):
     buf = io.BytesIO()
-    img.convert("P", palette=Image.ADAPTIVE, colors=16).save(
-        buf, "PNG", optimize=True)
+    if img.mode == "RGBA":
+        img.save(buf, "PNG", optimize=True)      # costume overlays keep alpha
+    else:
+        img.convert("P", palette=Image.ADAPTIVE, colors=16).save(
+            buf, "PNG", optimize=True)
     return base64.b64encode(buf.getvalue()).decode()
 
 
@@ -348,9 +584,14 @@ while steam curls off the crema. A short seamless loop by design: a Tidbyt
 only buffers a few seconds of a pushed animation and replays that chunk, so
 the whole cycle fits inside the buffer and frame {last} flows back into 0.
 
-The birds dress for the season -- Santa hats through Christmas, flower leis
-through the summer. The choice is made HERE, at render time, so a plain
-re-push always puts the right costume up without touching any code.
+The birds dress for the occasion. The costume is chosen HERE, at render time,
+so a plain re-push always puts up the right one without touching any code --
+which is why this app is pushed daily while its artwork never changes.
+
+Costumes are transparent overlays stacked on the art, keyed by POSE rather
+than by frame: a costume only cares which way the head is turned, and there
+are four head positions against 48 frames. Baking a whole frame set per
+costume would cost ~19KB of base64 each and would not scale to a wardrobe.
 
 Frames are generated by make_frames.py -- edit the constants there and re-run,
 don't hand-edit the blobs below.
@@ -365,44 +606,73 @@ CORAL = "{coral}"
 DELAY_MS = {delay}
 TZ = "{tz}"
 
-FRAMES_PLAIN = [
-{frames_plain}
+FRAMES = [
+{frames}
 ]
 
-FRAMES_SANTA = [
-{frames_santa}
+# Which head position each frame wears, so an overlay can follow the nod.
+POSES = {poses}
+
+WARDROBE = {{
+{wardrobe}
+}}
+
+# Occasions that move around the calendar -- Easter, Thanksgiving, the NYC
+# Marathon -- resolved to real dates ahead of time. Computing them in Starlark
+# would be a lot of arithmetic to get subtly wrong; a table is checkable.
+MOVABLE = {{
+{movable}
+}}
+
+# Fixed-date windows, first match wins, so narrow occasions are listed before
+# the broad seasons they sit inside.
+WINDOWS = [
+{windows}
 ]
 
-FRAMES_LEI = [
-{frames_lei}
-]
-
-WARDROBE = {{"plain": FRAMES_PLAIN, "santa": FRAMES_SANTA, "lei": FRAMES_LEI}}
-
-def dress_for(now):
-    """Santa from December through Twelfth Night, leis all summer."""
-    if now.month == 12 or (now.month == 1 and now.day <= 6):
-        return FRAMES_SANTA
-    if now.month >= 6 and now.month <= 8:
-        return FRAMES_LEI
-    return FRAMES_PLAIN
+def pick(now):
+    # Integer date keys, not formatted strings: Starlark's %% has no width
+    # specifiers, so "%02d" is a runtime error rather than a zero-padded day.
+    key = now.year * 10000 + now.month * 100 + now.day
+    if key in MOVABLE:
+        return MOVABLE[key]
+    md = now.month * 100 + now.day
+    for w in WINDOWS:
+        start, end, name = w[0], w[1], w[2]
+        if start <= end:
+            if md >= start and md <= end:
+                return name
+        elif md >= start or md <= end:      # a window that wraps new year
+            return name
+    return "plain"
 
 def main(config):
-    # `pixlet render ... season=santa` forces a costume, for previewing one
-    # out of season without waiting six months to see if it looks right.
-    forced = config.str("season", "")
-    if forced in WARDROBE:
-        frames = WARDROBE[forced]
-    else:
-        frames = dress_for(time.now().in_location(TZ))
+    # `pixlet render ... costume=santa` forces one, for previewing out of
+    # season without waiting a year to find out whether it looks right.
+    forced = config.str("costume", "")
+    name = forced if forced in WARDROBE else pick(time.now().in_location(TZ))
+    # Undressed rather than broken, if a window ever names a costume that was
+    # cut from the wardrobe. The generator asserts against this too.
+    coat = WARDROBE.get(name, WARDROBE["plain"])
 
     return render.Root(
         delay = DELAY_MS,
         child = render.Column(
             children = [
-                render.Animation(
+                render.Stack(
                     children = [
-                        render.Image(src = base64.decode(f)) for f in frames
+                        render.Animation(
+                            children = [
+                                render.Image(src = base64.decode(f))
+                                for f in FRAMES
+                            ],
+                        ),
+                        render.Animation(
+                            children = [
+                                render.Image(src = base64.decode(coat[p]))
+                                for p in POSES
+                            ],
+                        ),
                     ],
                 ),
                 render.Box(width = {canvas_w}, height = {gap_rows}),
@@ -426,24 +696,61 @@ def main(config):
 '''
 
 
+def contact_sheet(path, scale=5):
+    """A labelled sheet of every costume, so the README cannot drift."""
+    tiles = []
+    for name in COSTUMES:
+        art = draw_frame(NOD[0], 0)
+        card = Image.new("RGBA", (CANVAS_W, CANVAS_H), (0, 0, 0, 255))
+        card.paste(art, (0, 0))
+        card.alpha_composite(costume_overlay(NOD[0], name), (0, 0))
+        crop = card.convert("RGB").crop((OX - 4, 0, OX + BIRD_W + 4, CANVAS_H))
+        tiles.append((name, crop.resize(
+            (crop.width * scale, crop.height * scale), Image.NEAREST)))
+
+    cols = 4
+    w, h = tiles[0][1].size
+    rows = -(-len(tiles) // cols)
+    sheet = Image.new("RGB", (cols * (w + 6), rows * (h + 14)), (12, 11, 10))
+    draw = ImageDraw.Draw(sheet)
+    for i, (name, tile) in enumerate(tiles):
+        x, y = (i % cols) * (w + 6), (i // cols) * (h + 14)
+        sheet.paste(tile, (x, y))
+        draw.text((x + 3, y + h + 2), name, fill=(190, 186, 180))
+    sheet.save(path)
+
+
 def main():
     n = len(BEATS)
-    sets = {}
-    for season in SEASONS:
-        frames = [draw_frame(NOD[BEATS[t]], t, season) for t in range(n)]
+    frames = [draw_frame(NOD[BEATS[t]], t) for t in range(n)]
 
-        # The device replays a buffered chunk on repeat, so the wrap has to be
-        # a legal step. Render the hypothetical frame after the last one and
-        # require it to be frame 0 exactly -- the guarantee every future tune
-        # to BEATS or the steam wave has to keep, checked per costume.
-        assert draw_frame(NOD[BEATS[0]], n, season).tobytes() == frames[0].tobytes(), (
-            "%s loop is not seamless: frame %d does not wrap onto 0" % (season, n - 1))
-        sets[season] = [encode(f) for f in frames]
+    # The device replays a buffered chunk on repeat, so the wrap has to be a
+    # legal step. Render the hypothetical frame after the last one and require
+    # it to be frame 0 exactly -- the guarantee every future tune to BEATS or
+    # the steam wave has to keep.
+    assert draw_frame(NOD[BEATS[0]], n).tobytes() == frames[0].tobytes(), (
+        "loop is not seamless: frame %d does not wrap onto frame 0" % (n - 1))
+
+    named = set(MOVABLE.values()) | {w[2] for w in WINDOWS}
+    missing = named - set(COSTUMES)
+    assert not missing, (
+        "the calendar names costumes that do not exist: %s" % sorted(missing))
+
+    blobs = [encode(f) for f in frames]
+    wardrobe = {name: [encode(costume_overlay(a, name)) for a in NOD]
+                for name in COSTUMES}
 
     OUT_STAR.write_text(TEMPLATE.format(
-        frames_plain=",\n".join('    "%s"' % b for b in sets[PLAIN]),
-        frames_santa=",\n".join('    "%s"' % b for b in sets[SANTA]),
-        frames_lei=",\n".join('    "%s"' % b for b in sets[LEI]),
+        frames=",\n".join('    "%s"' % b for b in blobs),
+        poses=repr(list(BEATS)),
+        wardrobe=",\n".join(
+            '    "%s": [\n%s\n    ]' % (
+                name, ",\n".join('        "%s"' % b for b in coats))
+            for name, coats in sorted(wardrobe.items())),
+        movable="\n".join('    %d: "%s",  # %s' % (
+                               int(d.replace("-", "")), c, d)
+                           for d, c in sorted(MOVABLE.items())),
+        windows=",\n".join('    (%d, %d, "%s")' % w for w in WINDOWS),
         coral="#%02X%02X%02X" % CORAL,
         delay=DELAY_MS,
         last=n - 1,
@@ -452,9 +759,12 @@ def main():
         gap_rows=GAP_ROWS,
         text_rows=TEXT_ROWS,
     ))
-    print("frames=%d x %d costumes  base64=%dKB  ->  %s"
-          % (n, len(SEASONS),
-             sum(len(b) for v in sets.values() for b in v) // 1024, OUT_STAR))
+    contact_sheet(HERE / "costumes.png")
+
+    art = sum(len(b) for b in blobs) // 1024
+    coats = sum(len(b) for v in wardrobe.values() for b in v) // 1024
+    print("%d frames (%dKB) + %d costumes (%dKB)  ->  %s"
+          % (n, art, len(wardrobe), coats, OUT_STAR))
 
 
 if __name__ == "__main__":

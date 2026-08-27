@@ -65,25 +65,48 @@ pixlet render weather/weather.star --gif --magnify 8 -o preview.gif
 Pixlet quirk: keep each app in its own directory — two `.star` files in
 one folder confuse the loader.
 
-### The logo card's seasonal wardrobe
+### The logo card's wardrobe
 
 ![costumes](logo/costumes.png)
 
 | When | Costume |
 |---|---|
-| 1 Dec – 6 Jan | Santa hats |
-| 1 Jun – 31 Aug | Flower leis, plus a bloom at the ear |
-| the rest of the year | undressed |
+| 14 Feb | a heart between the two heads |
+| 17 Mar | green leprechaun hat, gold buckle |
+| Easter | a decorated egg between them |
+| 3 May | white-over-red caps — Polish Constitution Day, Greenpoint's own |
+| 1 Jun – 31 Aug | flower leis and a bloom at the ear |
+| 4 Jul | Uncle Sam hats |
+| 27–31 Oct | witch hats |
+| NYC Marathon | race bibs — one of the shop's biggest days |
+| Thanksgiving | pilgrim hats |
+| 1–30 Dec | Santa hats |
+| 31 Dec – 1 Jan | party hats and confetti |
+| everything else | undressed |
 
-All three wardrobes ship inside `kaleidoscope.star`; the app picks one from
-`time.now()` at render time. Every day of the year maps to exactly one
-costume. Preview one out of season without waiting six months:
+Every wardrobe ships inside `kaleidoscope.star` and the app picks one from
+`time.now()` at render time. Verified that all 5,479 days from 2026 to 2040
+map to exactly one costume, and that narrow occasions beat the broad seasons
+they sit inside — the Fourth of July outranks the summer lei, New Year's Eve
+outranks Santa.
+
+Easter, Thanksgiving and the Marathon move around the calendar, so they are
+resolved to real dates by the generator and shipped as a lookup table.
+Computing them in Starlark would be a lot of arithmetic to get subtly wrong
+and no way to test it. Extend `MOVABLE_YEARS` before 2040.
+
+Preview one out of season without waiting a year:
 
 ```bash
-pixlet render logo/kaleidoscope.star season=santa --gif --magnify 6 -o /tmp/x.gif
+pixlet render logo/kaleidoscope.star costume=halloween --gif --magnify 6 -o /tmp/x.gif
 ```
 
-`season` accepts `plain`, `santa`, or `lei`.
+Costumes are transparent overlays stacked on the art and keyed by **pose**,
+not by frame: a costume only cares which way the head is turned, and there
+are four head positions against 48 frames. Baking a full frame set per
+costume costs ~19KB of base64 each and does not scale to a wardrobe; this
+way each one costs a few hundred bytes. `logo/costumes.png` is regenerated
+by the same script, so the sheet above cannot drift from the code.
 
 ### Regenerating the logo card's frames
 
@@ -116,7 +139,13 @@ Neither is ever written into a tracked file.
   looks like it is standing beside its legs. Legs are 2px. Judge pixel art by
   simulating those gutters, not by magnifying a render.
 - Two shades of one hue barely separate at panel brightness — don't rely on
-  it to carry a shape.
+  it to carry a shape. A caramel pilgrim hat on a coral bird needed a white
+  band across it before it stopped reading as a smudge.
+- **Nothing may be black**, since the background is. A witch hat is purple.
+  The one exception is unlit pixels *inside* a lit shape — the number strokes
+  on the marathon bib work precisely because white surrounds them.
+- Small shapes want one hue. Alternating colours inside a 3px-wide band
+  dissolve it; save the colour play for something big enough to hold it.
 - Check contrast against black. A gray below about 2:1 simply is not there on
   a lit floor.
 

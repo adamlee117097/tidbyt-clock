@@ -1,0 +1,39 @@
+name: Push Kaleidoscope logo card to Tidbyt
+
+# Daily, and the frequency is the whole point: the app picks its costume from
+# the date at RENDER time, so the only thing that moves the birds out of their
+# Santa hats and into leis is a re-push. A static card would need no cron at
+# all -- this one needs one per day. Cheap: one ~40s job, free on a public
+# repo. GitHub throttles sub-hourly crons but honours daily ones.
+on:
+  schedule:
+    - cron: "17 9 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Runs FIRST so a later failure can't skip it -- this is what stops
+      # GitHub auto-disabling the schedule after 60 days of no commits.
+      - name: Keepalive
+        run: gh api -X PUT "repos/${GITHUB_REPOSITORY}/actions/workflows/push-logo.yml/enable"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Install pixlet
+        run: curl -sL https://github.com/tidbyt/pixlet/releases/download/v0.34.0/pixlet_0.34.0_linux_amd64.tar.gz | tar xz
+
+      - name: Render and push
+        run: |
+          ./pixlet render logo/kaleidoscope.star -o logo.webp
+          ./pixlet push \
+            --api-token "${{ secrets.TIDBYT_API_TOKEN }}" \
+            --installation-id logo \
+            "${{ secrets.TIDBYT_DEVICE_ID }}" logo.webp

@@ -1,0 +1,35 @@
+name: Push Rocket Fuel promo to Tidbyt
+
+# A static promo card: nothing it renders depends on the time of day, so
+# one push would do forever. The daily run exists to put the card back if
+# the device ever drops it, and to keep the schedule from being auto-disabled.
+on:
+  schedule:
+    - cron: "17 12 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Keepalive
+        run: gh api -X PUT "repos/${GITHUB_REPOSITORY}/actions/workflows/push-rocketfuel.yml/enable"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Install pixlet
+        run: curl -sL https://github.com/tidbyt/pixlet/releases/download/v0.34.0/pixlet_0.34.0_linux_amd64.tar.gz | tar xz
+
+      - name: Render and push
+        run: |
+          ./pixlet render rocketfuel/rocketfuel.star -o rocketfuel.webp
+          ./pixlet push \
+            --api-token "${{ secrets.TIDBYT_API_TOKEN }}" \
+            --installation-id rocketfuel \
+            "${{ secrets.TIDBYT_DEVICE_ID }}" rocketfuel.webp

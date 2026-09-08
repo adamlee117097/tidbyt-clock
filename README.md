@@ -7,6 +7,7 @@ palette, pushed standalone by GitHub Actions — no home machine involved.
 |---|---|---|
 | **logo** | ![Logo preview](logo/preview.gif) | Kaleidoscope Coffee: two pixel-art flamingos leaning in over a pair of espresso cups on the counter, steam puffing off the crema. They blink, shift their weight into the lean, flick a tail, and the steam meets as a heart at the deepest lean. They sleep when the shop is shut. |
 | **news** | — | Greenpoint headlines (Greenpointers + Brooklyn Paper RSS), vertical scroll, breaking-news state |
+| **rocketfuel** | ![Rocket Fuel preview](rocketfuel/preview.gif) | Promo card for Sweetleaf's Rocket Fuel (maple oat-milk cold brew): a pixel-art take on the can — the rider on a gold rocket, flame flickering, splatter stars streaming. Static; pushed daily as a keepalive. |
 | **weather** | ![Weather preview](weather/preview.gif) | Current temp, animated pixel-art conditions, daily high/low, precip chance (NWS + Open-Meteo blend, no API keys) |
 | **clock** | ![Clock preview](clock/preview.gif) | Gold digits, blinking colon, date, seconds bar *(experimental — see note)* |
 

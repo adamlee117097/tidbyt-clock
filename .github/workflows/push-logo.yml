@@ -47,7 +47,6 @@ jobs:
       - name: Render and push every 15 minutes
         run: |
           for i in $(seq 1 22); do
-            # Add `wordmark=off` after the .star path for the 31px no-name layout.
             if ./pixlet render logo/kaleidoscope.star -o fresh.webp; then
               mv fresh.webp logo.webp
             else

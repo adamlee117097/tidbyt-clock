@@ -5,7 +5,7 @@ palette, pushed standalone by GitHub Actions — no home machine involved.
 
 | App | Preview | What it shows |
 |---|---|---|
-| **logo** | ![Logo preview](logo/preview.gif) ![Big layout](logo/preview-big.gif) | The Kaleidoscope Coffee mark: two flamingos leaning in over a pair of espresso cups, steam puffing off the crema. They blink, shift their weight into the lean, flick a tail, and the steam meets as a heart at the deepest lean. They sleep when the shop is shut. Two layouts: with the wordmark (default) or 31px birds filling the panel (`wordmark=off`). |
+| **logo** | ![Logo preview](logo/preview.gif) | Kaleidoscope Coffee: two pixel-art flamingos leaning in over a pair of espresso cups on the counter, steam puffing off the crema. They blink, shift their weight into the lean, flick a tail, and the steam meets as a heart at the deepest lean. They sleep when the shop is shut. |
 | **news** | — | Greenpoint headlines (Greenpointers + Brooklyn Paper RSS), vertical scroll, breaking-news state |
 | **weather** | ![Weather preview](weather/preview.gif) | Current temp, animated pixel-art conditions, daily high/low, precip chance (NWS + Open-Meteo blend, no API keys) |
 | **clock** | ![Clock preview](clock/preview.gif) | Gold digits, blinking colon, date, seconds bar *(experimental — see note)* |
@@ -84,28 +84,22 @@ Hours live in `make_frames.py` and are baked into the app. Note that a pixlet
 time value has **no weekday attribute** — `now.format("Mon")` is how you get
 one.
 
-Force either state for a look, and pick the layout:
+Force either state for a look:
 
 ```bash
 pixlet render logo/kaleidoscope.star state=asleep --gif --magnify 6 -o /tmp/x.gif
-pixlet render logo/kaleidoscope.star wordmark=off --gif --magnify 6 -o /tmp/big.gif
 ```
 
-### Two layouts
+### The wordmark
 
-Both are baked into the one `.star`; `push-logo.yml` renders the default
-(wordmark on). Switch the device to the big birds by adding `wordmark=off`
-to the render line in the workflow.
-
-Why the second layout exists: on a 3mm-pitch panel, 5px text is legible to
-about 6 feet and a 26px bird to about 30. From where anyone stands in the
-shop the name is not readable and the mark is. The big layout spends the
-wordmark's rows on 31px birds instead.
-
-The wordmark itself, when kept, is gray (185) in `CG-pixel-4x5-mono` rather
-than white in tom-thumb. White sat at ~0.91 relative luminance against the
-birds' ~0.27 -- 3.4x brighter than the thing the card is for. The 4px glyphs
-also stop K, D, O and C being ambiguous at this size.
+Gray (185) in `CG-pixel-4x5-mono` rather than white in tom-thumb. White sat
+at ~0.91 relative luminance against the birds' ~0.27 -- 3.4x brighter than
+the thing the card is for. The 4px glyphs also stop K, D, O and C being
+ambiguous at this size. Worth knowing: on a 3mm-pitch panel, 5px text is
+legible to about 6 feet and a 24px bird to about 30, so from where anyone
+stands in the shop the name is decoration and the mark is the message. A
+no-wordmark layout with bigger birds was built once (commit 288420b) and is
+parked until the birds themselves are settled.
 
 ### Regenerating the logo card's frames
 
@@ -113,33 +107,29 @@ also stop K, D, O and C being ambiguous at this size.
 python3 logo/make_frames.py     # needs Pillow + numpy
 ```
 
-It recomposes the flamingos from the shop's logo artwork at full resolution —
-head and neck are split off as their own layer along a slanted cut and
-rotated about the neck base — and only then downscales to 26px, so every pose
-keeps the logo's true proportions. The bottom band (legs, perch line, cups,
-feet) is hand-authored pixel geometry instead, because at 26px the downscale
-smears it. Edit the constants at
-the top and re-run; it rewrites `logo/kaleidoscope.star` in place. Don't
-hand-edit the base64 blobs.
+The birds are hand-authored pose grids (ASCII, one character per pixel) at
+the top of the script: neutral, half lean, full lean, and asleep. The right
+bird is the left one mirrored. Edit a grid or a constant and re-run; it
+rewrites `logo/kaleidoscope.star` in place. Don't hand-edit the base64 blobs.
 
-This is the one script here that is not fork-friendly: it reads a source logo
-by absolute path from outside the repo. You don't need it to *run* the app —
-`kaleidoscope.star` is committed and self-contained — only to change the art.
+Why hand-authored: the first four versions downscaled the shop's actual logo
+artwork, and however carefully (head split off and rotated at full
+resolution, LANCZOS, thresholded, symmetry forced) it never read as a
+flamingo -- the neck came out a thick straight column, the bill a sideways
+bar, the body a blob with an angular wing. The sprites that do read at this
+size all do the same few things: a compact round head, a pale bill hooking
+*down* in front of it, a thin vertical neck rising from the *front* of a
+horizontal body, a pointed tail, long bare legs. So that is what is drawn.
 
-Things the generator refuses to do quietly, because each of them once
-produced valid-looking output that was wrong: it fails if the source logo is
-not the 1024×1024 export the crop constants were measured against, and fails
-again if the crop catches the wrong number of opaque pixels (a re-export that
-merely *shifted* the artwork passes a dimension check and silently crops 40%
-less of the mark). It asserts the loop invariants too — the steam wave must
-divide the frame count, the sprite must stay an odd width, the perch line
-must meet the cup handle, and the frame after the last must render
-byte-identical to the first. Steam has its own guard: no puff or heart pixel
-may land on, or even diagonally touch, a bird pixel in any frame -- LED bloom
-closes that gap and the steam reads as a growth on the bird. It fired twice
-while the puffs were being placed, which is how the climb ended up five rows
-tall with a dissipated sixth step and the weight-shift dip ended up on the
-8-frame hold only.
+Things the generator refuses to do quietly: it asserts every grid is the
+right shape and uses only known symbols, that each awake pose has exactly one
+eye and the sleeping one none, that the puff climb and the z drift divide the
+frame count, that the cups, counter and heart are mirror-symmetric, that the
+blink and the tail flick actually change a frame, and that the frame after
+the last renders byte-identical to the first. Steam has its own guard: no
+puff or heart pixel may land on, or even diagonally touch, a bird pixel in
+any frame -- LED bloom closes that gap and the steam reads as a growth on
+the bird.
 
 ### The motion
 
@@ -186,25 +176,21 @@ pixlet delete --api-token "$(cat ~/.config/tidbyt/token)" \
   the body, which gives the mass some form without risking the silhouette.
   Anything load-bearing needs a real value gap.
 - Black is invisible *against* black, but black *inside* a lit shape is the
-  strongest mark available. That is the only way an unlit pixel works here,
-  and it is what draws the wing fold — a 1px line traced parallel to the
-  wing's leading edge. At 2px it stops reading as a line and starts reading
-  as a hole punched in the bird.
-- The beak is found by flood fill, not by coordinates. The logo has one unlit
-  region the border cannot reach — the notch behind the bill — and the lit run
-  just outboard of it is the bill itself, which the mark already draws in the
-  right shape and merely coloured the same coral as the bird. Giving it its
-  own pale tone is what every small flamingo sprite does and what this one was
-  missing; deriving it from the notch means it tracks the head at any angle
-  with nothing to keep in sync. The notch above it then serves as the dark
-  eye, which is the genre convention — a bright pupil there competed with the
-  bill and read as a glint.
-- A true black bill tip is unreachable here: at the outer end of the beak it
+  strongest mark available. That is how the eye is drawn: one unlit pixel in
+  the head, the genre convention — a bright pupil there competed with the
+  bill and read as a glint. A 1px unlit wing fold was tried on the
+  hand-drawn body and read as three specks, not a line; the belly shadow does
+  the wing's work instead.
+- A true black bill tip is unreachable here: at the outer end of the bill it
   would border the background on three sides and vanish. The downward hook is
-  carried by shape alone.
-- Sleeping birds show no bill. The folded head turns that notch into a larger
-  enclosed region which reads as a pale blob, and a roosting flamingo tucks
-  its bill into its back anyway.
+  carried by shape alone, in the bill's own pale colour.
+- Sleeping birds show no bill and no eye: a roosting flamingo lays its head
+  along its back with the bill tucked.
+- Fidelity to the logo is not the goal; reading as a flamingo is. The
+  downscaled logo kept every proportion and read as nothing. Draw the cues,
+  not the artwork.
+- A counter line that touches a leg reads as a shelf the bird is standing on.
+  The cups' counter now stops well short of the legs.
 - **Nothing may be black**, since the background is. A witch hat is purple.
   The one exception is unlit pixels *inside* a lit shape — the number strokes
   on the marathon bib work precisely because white surrounds them.

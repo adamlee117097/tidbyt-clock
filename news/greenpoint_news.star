@@ -7,6 +7,13 @@ wall-clock so every story gets airtime): white headline, gray one-line
 summary, source tag colored per feed. A story fresher than an hour goes
 breaking-news yellow with +++ brackets. Free RSS, no API keys.
 
+Stories older than MAX_AGE_DAYS are dropped -- unless that empties the
+pool (a holiday weekend did exactly this), in which case the freshest
+few are shown anyway: they carry an honest "3D AGO" tag, which beats a
+blank card. If neither feed can be read at all the render FAILS on
+purpose, so the push loop re-sends the previous webp rather than a
+placeholder.
+
 Pushed by GitHub Actions; the scrolling animation loops on-device
 between pushes.
 """
@@ -20,7 +27,7 @@ FEEDS = [
     {"tag": "GPTRS", "url": "https://greenpointers.com/feed/", "accent": "#57AB5A"},
     {"tag": "BK PAPER", "url": "https://www.brooklynpaper.com/tag/greenpoint/feed/", "accent": "#6BB1FF"},
 ]
-PER_FEED = 3
+PER_FEED = 6  # candidates per feed; only SHOW_PER_CYCLE are rendered, so this costs no frames
 SHOW_PER_CYCLE = 3
 CACHE_TTL_SECONDS = 600
 ANIMATION_SPEED = 100  # ms per frame
@@ -217,11 +224,19 @@ def get_articles():
                 "accent": feed["accent"],
                 "ts": parsed.unix if parsed else 0,
             })
-    cutoff = time.now().unix - MAX_AGE_DAYS * 86400
-    items = [it for it in items if it["ts"] == 0 or it["ts"] >= cutoff]
     if not items:
-        return [{"title": "No Greenpoint news in the last %d days" % MAX_AGE_DAYS, "description": "", "meta": "", "accent": STORY, "ts": 0}]
-    return sorted(items, key = lambda a: a["ts"], reverse = True)
+        # Both feeds down (or serving error pages). A failed render makes
+        # push-news.yml re-push the previous webp -- real stories, slightly
+        # stale -- instead of putting a placeholder on the shop floor.
+        fail("no Greenpoint stories could be read from any feed")
+    items = sorted(items, key = lambda a: a["ts"], reverse = True)
+    cutoff = time.now().unix - MAX_AGE_DAYS * 86400
+    fresh = [it for it in items if it["ts"] == 0 or it["ts"] >= cutoff]
+    if fresh:
+        return fresh
+    # Quiet stretch: nothing inside the window. Show the freshest anyway
+    # rather than "no news" -- each one's meta line says how old it is.
+    return items[:SHOW_PER_CYCLE]
 
 def render_header():
     return render.Column(

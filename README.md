@@ -5,7 +5,7 @@ palette, pushed standalone by GitHub Actions — no home machine involved.
 
 | App | Preview | What it shows |
 |---|---|---|
-| **logo** | ![Logo preview](logo/preview.gif) | The Kaleidoscope Coffee mark: two flamingos leaning in over a pair of espresso cups, steam off the crema. They sleep when the shop is shut. |
+| **logo** | ![Logo preview](logo/preview.gif) ![Big layout](logo/preview-big.gif) | The Kaleidoscope Coffee mark: two flamingos leaning in over a pair of espresso cups, steam puffing off the crema. They blink, shift their weight into the lean, flick a tail, and the steam meets as a heart at the deepest lean. They sleep when the shop is shut. Two layouts: with the wordmark (default) or 31px birds filling the panel (`wordmark=off`). |
 | **news** | — | Greenpoint headlines (Greenpointers + Brooklyn Paper RSS), vertical scroll, breaking-news state |
 | **weather** | ![Weather preview](weather/preview.gif) | Current temp, animated pixel-art conditions, daily high/low, precip chance (NWS + Open-Meteo blend, no API keys) |
 | **clock** | ![Clock preview](clock/preview.gif) | Gold digits, blinking colon, date, seconds bar *(experimental — see note)* |
@@ -84,11 +84,28 @@ Hours live in `make_frames.py` and are baked into the app. Note that a pixlet
 time value has **no weekday attribute** — `now.format("Mon")` is how you get
 one.
 
-Force either state for a look:
+Force either state for a look, and pick the layout:
 
 ```bash
 pixlet render logo/kaleidoscope.star state=asleep --gif --magnify 6 -o /tmp/x.gif
+pixlet render logo/kaleidoscope.star wordmark=off --gif --magnify 6 -o /tmp/big.gif
 ```
+
+### Two layouts
+
+Both are baked into the one `.star`; `push-logo.yml` renders the default
+(wordmark on). Switch the device to the big birds by adding `wordmark=off`
+to the render line in the workflow.
+
+Why the second layout exists: on a 3mm-pitch panel, 5px text is legible to
+about 6 feet and a 26px bird to about 30. From where anyone stands in the
+shop the name is not readable and the mark is. The big layout spends the
+wordmark's rows on 31px birds instead.
+
+The wordmark itself, when kept, is gray (185) in `CG-pixel-4x5-mono` rather
+than white in tom-thumb. White sat at ~0.91 relative luminance against the
+birds' ~0.27 -- 3.4x brighter than the thing the card is for. The 4px glyphs
+also stop K, D, O and C being ambiguous at this size.
 
 ### Regenerating the logo card's frames
 
@@ -117,7 +134,31 @@ merely *shifted* the artwork passes a dimension check and silently crops 40%
 less of the mark). It asserts the loop invariants too — the steam wave must
 divide the frame count, the sprite must stay an odd width, the perch line
 must meet the cup handle, and the frame after the last must render
-byte-identical to the first.
+byte-identical to the first. Steam has its own guard: no puff or heart pixel
+may land on, or even diagonally touch, a bird pixel in any frame -- LED bloom
+closes that gap and the steam reads as a growth on the bird. It fired twice
+while the puffs were being placed, which is how the climb ended up five rows
+tall with a dissipated sixth step and the weight-shift dip ended up on the
+8-frame hold only.
+
+### The motion
+
+Four head poses held pose-to-pose (never tweened 1px at a time -- at this
+size that reads as the sprite melting). On top of the lean:
+
+- **Steam** is 2x2 puffs, not a 1px wisp -- the wisp was a 1px column, the
+  exact thing the gutters turn into a dotted line. Born at the rim, one row
+  per 8 frames, fading as they climb, two in flight per cup with the right cup
+  half a hold behind the left. Capped at 150 gray so no step out-shines coral.
+- **Weight shift**: on the 8-frame deepest lean the body drops one row while
+  the feet stay planted.
+- **Tail flick**: two frames after the lean lands the tail tip lifts one row
+  for three frames. A 2px block, so it survives the gutters.
+- **Blink**: the eye notch fills with coral for two frames, each bird on its
+  own beat. It removes pixels rather than adding a glint.
+- **Steam heart**: during the deepest lean the two cups' steam meets over the
+  counter as a 7x5 heart, in steam gray. `HEART = False` in the generator
+  drops it.
 
 `logo/push.sh` pushes from a laptop, reading the API token from
 `~/.config/tidbyt/token` and the device id from `~/.config/tidbyt/device_id`
@@ -171,6 +212,17 @@ pixlet delete --api-token "$(cat ~/.config/tidbyt/token)" \
   dissolve it; save the colour play for something big enough to hold it.
 - Check contrast against black. A gray below about 2:1 simply is not there on
   a lit floor.
+- Check relative luminance against the *subject*, not just against black. The
+  firmware applies CIE luminance correction, so sRGB-space luminance is the
+  right model: coral ≈ 0.27, gold ≈ 0.56, white ≈ 0.91. Anything brighter than
+  the birds competes with them; that is why the wordmark is gray and the
+  steam is capped at 150.
+- Legibility distance on a 3mm pitch: roughly 1 inch of cap height per 10
+  feet. 5px text reaches ~6 feet; a 26px bird ~30 feet.
+- Judge through an LED-gutter simulator (each pixel a square with a gap and a
+  faint bloom), never a plain magnified render. pixlet also merges identical
+  consecutive frames, so webp frame N is not generator frame N -- expand by
+  frame duration before indexing.
 
 Clock config params: `frames` (seconds of animation, default 150),
 `offset` (seconds to lead real time by, to cancel push latency), `$tz`

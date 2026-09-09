@@ -165,7 +165,7 @@ SLEEP = [
     ".............CC.CCCC.",
     ".............CC..CCBB",
     ".............CC....BB",
-    ".............CC......",
+    ".............CC.....B",
     "......CCCCCCCCCC.....",
     "....CCCCCCCCCCCCC....",
     "..CCCCCCCCCCCCCCCC...",
@@ -204,14 +204,17 @@ assert 2 * (OX + BIRD_W) <= PANEL_W
 
 # Cups, counter, steam: canvas coordinates for the LEFT side, mirrored.
 # The corridor between the birds' chests is canvas cols 23..40.
-CUP = {18: [26, 27, 28, 29],        # rim -- widest row, that is what reads
-       19: [26, 27, 28, 29],        # body
-       20: [25, 26, 27, 28, 29],    # body + handle, meets the counter line
+CUP = {18: [26, 27, 28, 29],        # rim
+       19: [25, 26, 27, 28, 29],    # body + handle, high on the cup: with the
+                                    # handle a row lower the cup was widest at
+                                    # the bottom and read as a bell
+       20: [26, 27, 28, 29],        # body
        21: [27, 28]}                # tapered base
 # The counter the cups stand on: a dark line under their bases, spanning the
 # corridor and stopping well short of the legs. Joined to a leg (the earlier
 # perch line) it read as a shelf the bird was standing on.
-COUNTER_ROW = max(CUP) + 1
+COUNTER_ROWS = (max(CUP) + 1, max(CUP) + 2)   # 2 rows: a 1-row counter was a
+                                                # dotted line through the gutters
 COUNTER_COLS = range(24, PANEL_W // 2)
 PUFF_COL = 27              # left column of the 2px puff over the left cup
 STEAM_BASE_ROW = min(CUP) - 1
@@ -244,9 +247,12 @@ PUFF_OFFSETS = (0, 3)      # two puffs per cup, half a cycle apart
 RIGHT_PUFF_PHASE = 4       # frames; mirrored steam looks mechanical
 HEART = True               # the two steams meet as a heart on the deep lean
 HEART_FRAMES = range(LEAN_LANDS, LEAN_LANDS + 8)
-Z_ROWS, Z_HOLD, Z_OFFSETS = 8, 6, (0, 4)
-ZED = [(178, 194, 240), (162, 178, 226), (144, 160, 210), (126, 142, 194),
-       (110, 124, 176), (96, 108, 158), (84, 94, 140), (72, 82, 124)]
+Z_ROWS, Z_HOLD, Z_OFFSETS = 12, 4, (0, 6)
+# 12 steps of fade, bright at birth. A 3x3 z with a 1px diagonal read as a
+# blue chip through the gutters; this is a 4x4 Z with a 2px diagonal.
+ZED = [tuple(round(a + (b - a) * i / 11) for a, b in zip((178, 194, 240), (72, 82, 124)))
+       for i in range(12)]
+Z_SHAPE = ["####", "..##", "##..", "####"]
 DELAY_MS = 66
 TIMEZONE = "America/New_York"
 OPEN_HOUR = 8
@@ -280,15 +286,15 @@ def frame_state(t):
 
 
 def _flick_tail(rows):
-    """Lift the tail tip one row: the two outermost columns' block moves up."""
+    """Lift the tail tip one row: everything in the two outermost columns
+    moves up as a unit, so the point itself moves (moving only the bottom
+    pixel of each column was a 1px thickening nobody could see)."""
     grid = [list(r) for r in rows]
-    lit = [y for y in range(BIRD_H) if grid[y][0] != "." or grid[y][1] != "."]
-    top, bottom = min(lit), max(lit)
     for c in (0, 1):
-        ch = grid[bottom][c]
-        grid[bottom][c] = "."
-        if top - 1 >= 0 and ch != ".":
-            grid[top - 1][c] = ch
+        col = [grid[y][c] for y in range(BIRD_H)]
+        col = col[1:] + ["."]
+        for y in range(BIRD_H):
+            grid[y][c] = col[y]
     return ["".join(r) for r in grid]
 
 
@@ -340,9 +346,10 @@ def draw_frame(t=0, awake=True):
     paint_bird(px, pose, False, birds, dip=st["dip"], blink=st["blink_left"], flick=st["flick"])
     paint_bird(px, pose, True, birds, dip=st["dip"], blink=st["blink_right"], flick=st["flick"])
 
-    for x in COUNTER_COLS:                       # the counter, under the cups
-        put(x, COUNTER_ROW + TOP_MARGIN, DARK)
-        put(mirrored(x), COUNTER_ROW + TOP_MARGIN, DARK)
+    for row in COUNTER_ROWS:                     # the counter, under the cups
+        for x in COUNTER_COLS:
+            put(x, row + TOP_MARGIN, DARK)
+            put(mirrored(x), row + TOP_MARGIN, DARK)
     for row, cols in CUP.items():                # the two espresso cups
         for x in cols:
             put(x, row + TOP_MARGIN, GOLD)
@@ -361,7 +368,9 @@ def draw_frame(t=0, awake=True):
             step = ((st["puff_tick"] + phase) // PUFF_HOLD + offset) % PUFF_STEPS
             if step >= len(PUFF):
                 continue                         # dissipated
-            top = STEAM_BASE_ROW - 1 - step
+            top = STEAM_BASE_ROW - 2 - step      # a row of air over the rim,
+                                                 # or the newborn puff fuses
+                                                 # into a gray lid on the cup
             for r in (top, top + 1):
                 for c in (col0, col0 + 1):
                     put(c, r + TOP_MARGIN, PUFF[step])
@@ -372,17 +381,15 @@ def zed_overlay(step):
     """The 'z's, at the heights they have drifted to, fading as they climb."""
     img = Image.new("RGBA", (PANEL_W, CANVAS_H), (0, 0, 0, 0))
     px = img.load()
-    m = PANEL_W // 2 - 1
+    left = PANEL_W // 2 - len(Z_SHAPE[0]) // 2
     for offset in Z_OFFSETS:
         i = (step + offset) % Z_ROWS
         row = (Z_ROWS - 1) - i + TOP_MARGIN + Z_FLOOR
         color = ZED[i] + (255,)
-        for col in (m - 1, m, m + 1):            # top and bottom bars
-            for r in (row, row + 2):
-                if 0 <= r < CANVAS_H:
-                    px[col, r] = color
-        if 0 <= row + 1 < CANVAS_H:              # the diagonal
-            px[m, row + 1] = color
+        for r, line in enumerate(Z_SHAPE):
+            for c, ch in enumerate(line):
+                if ch == "#" and 0 <= row + r < CANVAS_H:
+                    px[left + c, row + r] = color
     return img
 
 

@@ -23,14 +23,16 @@ HERE = Path(__file__).resolve().parent
 OUT_STAR = HERE / "rocketfuel.star"
 
 GOLD = (246, 178, 60)
-GOLD_HI = (252, 200, 96)    # top highlight of the hull (kept close to gold:
-                            # the flame core must own the pale yellow)
-ORANGE = (232, 98, 42)      # lower hull
-UNDER = (170, 60, 30)       # underside
-FIN = (215, 75, 40)
+UNDER = (170, 60, 30)       # underside; the hull is a two-tone cylinder,
+                            # gold over dark -- the only split that survives
+                            # the panel. A third orange band made the hull
+                            # and the flame one amber wedge.
+FIN = (255, 61, 138)        # pink, as on the can: the tail's own hue, not a
+                            # fourth warm orange piled where hull, nozzle and
+                            # flame already meet
 PORTHOLE = (150, 210, 255)
 FLAME_CORE = (255, 246, 160)
-FLAME = (255, 100, 30)
+FLAME = (255, 50, 20)       # true red, so exhaust never matches hull
 NOZZLE = (130, 36, 28)      # dark band at the tail so the flame reads as
                             # exhaust rather than more hull
 PINK = (255, 61, 138)
@@ -51,7 +53,9 @@ FLAME_SEQ = [0, 1, 2, 1]    # flame length variants; 4 x 4 = 16 divides 64
 # ---- rocket geometry, in rocket-local units (x along the axis, y radial)
 BODY_LEN = 24.0
 RADIUS = 4.5
-NOSE_LEN = 10.0
+NOSE_LEN = 12.0             # long and pointed: the rounded nose was
+                            # blunter than the flame tip and the ship read
+                            # as flying LEFT
 FIN_LEN = 6.0
 FIN_REACH = 2.4             # how far past the hull a fin reaches
 PORT_X, PORT_R = 8.0, 1.6
@@ -68,9 +72,9 @@ RIDER = [
     ".aa.....hkkkk.",
     "..aa.....sss..",
     "..aa....tttt..",
-    "...aa..tttttt.",
-    "....s..tttttt.",
-    ".......jjjjjj.",
+    "...aaaatttttt.",
+    ".....sstttttt.",
+    ".......ssssss.",
     "......jjj.jjj.",
     ".....jjj...jjj",
     ".....jj.....jj",
@@ -81,12 +85,16 @@ SHADES = (245, 245, 255)    # the white-framed shades, the rider's one bright cu
 RIDER_PAL = {"h": HAIR, "p": PINK, "k": SHADES, "s": SKIN, "t": TOP, "j": JEANS, "a": TATTOO}
 
 STARS = [(2, 1, PINK), (9, 5, BLUE), (20, 2, PINK), (26, 22, BLUE), (44, 3, BLUE),
-         (51, 1, PINK), (57, 6, BLUE), (61, 13, PINK), (40, 23, BLUE), (6, 23, PINK),
+         (51, 1, PINK), (57, 6, BLUE), (61, 13, PINK), (40, 21, BLUE), (6, 20, PINK),
          (33, 22, BLUE), (48, 19, PINK), (12, 10, BLUE), (58, 17, PINK), (36, 4, BLUE),
-         (54, 23, PINK), (3, 12, BLUE), (62, 9, BLUE)]
+         (54, 18, PINK), (3, 12, BLUE), (62, 9, BLUE)]
+STAR_DROP = 3               # rows of downward drift per 8 frames: the field
+                            # streams down-left, which is what a climb looks
+                            # like. 3 * 64 / 8 = 24 = H, so it wraps exactly.
 
 assert all(len(r) == len(RIDER[0]) for r in RIDER)
 assert N_FRAMES % BOB_PERIOD == 0 and N_FRAMES % (FLAME_PERIOD * len(FLAME_SEQ)) == 0 and N_FRAMES % W == 0
+assert (STAR_DROP * N_FRAMES // 8) % H == 0, "star drift must wrap the field"
 assert (N_FRAMES // BOB_PERIOD) % 2 == 0, "the bob must end where it started"
 
 _c, _s = math.cos(math.radians(ANGLE_DEG)), math.sin(math.radians(ANGLE_DEG))
@@ -106,23 +114,17 @@ def rocket_color(x, y, flame_len):
     # nose: rounded, radius shrinking to 0 over NOSE_LEN
     if BODY_LEN <= x <= BODY_LEN + NOSE_LEN:
         t = (x - BODY_LEN) / NOSE_LEN
-        r = RADIUS * math.sqrt(max(0.0, 1 - t * t))
+        r = RADIUS * (1 - t) ** 0.7
         if abs(y) <= r:
-            return GOLD_HI if y < -r * 0.45 else (GOLD if y < r * 0.35 else ORANGE)
+            return GOLD if y < r * 0.35 else UNDER
         return None
     if 0 <= x < BODY_LEN:
         if (x - PORT_X) ** 2 + (y + 0.6) ** 2 <= PORT_R ** 2:
             return PORTHOLE
-        if x < 1.2 and abs(y) <= RADIUS:
-            return NOZZLE
+        if x < 2.5 and abs(y) <= RADIUS:
+            return NOZZLE                        # a real 2px band
         if abs(y) <= RADIUS:
-            if y < -RADIUS * 0.55:
-                return GOLD_HI
-            if y < RADIUS * 0.15:
-                return GOLD
-            if y < RADIUS * 0.7:
-                return ORANGE
-            return UNDER
+            return GOLD if y < RADIUS * 0.35 else UNDER
         # fins: triangles off the hull at the tail
         if x <= FIN_LEN:
             reach = FIN_REACH * (1 - x / FIN_LEN)
@@ -133,9 +135,9 @@ def rocket_color(x, y, flame_len):
         t = -x / flame_len                       # 0 at the tail, 1 at the tip
         r = RADIUS * 0.9 * (1 - t) + 0.8
         if abs(y) <= r:
-            if abs(y) <= r * 0.45 and t < 0.75:
+            if abs(y) <= r * 0.45 and t < 0.4:
                 return FLAME_CORE
-            if t > 0.8:
+            if t > 0.85:
                 return PINK
             return FLAME
     return None
@@ -147,7 +149,7 @@ def frame(t):
     bob = -1 if (t // BOB_PERIOD) % 2 else 0
     flame_len = FLAME_LENS[FLAME_SEQ[(t // FLAME_PERIOD) % len(FLAME_SEQ)]]
     for (c, r, col) in STARS:
-        px[(c - t) % W, r] = col
+        px[(c - t) % W, (r + STAR_DROP * t // 8) % H] = col
     for y in range(H):
         for x in range(W):
             lx, ly = to_local(x, y - bob)

@@ -150,20 +150,22 @@ LEAN = [
     "..........LL.........",
     "..........FFFF.......",
 ]
-# Asleep: a roosting flamingo lays its head along its back, bill tucked. The
-# neck rises from the body's front, arcs back, and the head rests on the back.
-# No eye, no bill -- both are tucked away.
+# Asleep: the neck stays up but the head droops forward and hangs off it, bill
+# pointing straight down, eye shut (no eye pixel). A head laid back along the
+# body -- what a roosting flamingo really does -- was tried first and at this
+# size read as a lump with a loop on it; the drooping hook keeps the neck,
+# and the neck is what makes the silhouette a flamingo.
 SLEEP = [
     ".....................",
     ".....................",
     ".....................",
+    "..............CCC....",
+    ".............CCCCCC..",
+    ".............CC.CCCC.",
+    ".............CC.CCCC.",
+    ".............CC..CCBB",
+    ".............CC....BB",
     ".............CC......",
-    "............CCC......",
-    "......CCCCCCCC.......",
-    ".....CCCCCC..CC......",
-    ".....CCCCCC..CC......",
-    "......CCCC...CC......",
-    "......CCCC...CC......",
     "......CCCCCCCCCC.....",
     "....CCCCCCCCCCCCC....",
     "..CCCCCCCCCCCCCCCC...",
@@ -186,7 +188,7 @@ for _g in POSES + [SLEEP]:
     assert all(set(r) <= set(".CSBELF") for r in _g), "unknown symbol in a pose grid"
 for _g in POSES:
     assert sum(r.count("E") for r in _g) == 1, "each awake pose needs exactly one eye"
-assert "E" not in "".join(SLEEP) and "B" not in "".join(SLEEP), "a sleeping bird shows neither eye nor bill"
+assert "E" not in "".join(SLEEP), "a sleeping bird's eye is shut: no eye pixel"
 
 # ---------------------------------------------------------------- layout
 PANEL_W, PANEL_H = 64, 32

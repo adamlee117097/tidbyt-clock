@@ -85,9 +85,9 @@ SHADES = (245, 245, 255)    # the white-framed shades, the rider's one bright cu
 RIDER_PAL = {"h": HAIR, "p": PINK, "k": SHADES, "s": SKIN, "t": TOP, "j": JEANS, "a": TATTOO}
 
 STARS = [(2, 1, PINK), (9, 5, BLUE), (20, 2, PINK), (26, 22, BLUE), (44, 3, BLUE),
-         (51, 1, PINK), (57, 6, BLUE), (61, 13, PINK), (40, 21, BLUE), (6, 20, PINK),
+         (47, 1, PINK), (57, 11, BLUE), (61, 13, PINK), (40, 21, BLUE), (6, 20, PINK),
          (33, 22, BLUE), (48, 19, PINK), (12, 10, BLUE), (58, 17, PINK), (36, 4, BLUE),
-         (54, 18, PINK), (3, 12, BLUE), (62, 9, BLUE)]
+         (54, 18, PINK), (3, 12, BLUE), (62, 14, BLUE)]
 STAR_DROP = 3               # rows of downward drift per 8 frames: the field
                             # streams down-left, which is what a climb looks
                             # like. 3 * 64 / 8 = 24 = H, so it wraps exactly.
@@ -183,6 +183,8 @@ load("encoding/base64.star", "base64")
 
 DELAY_MS = {delay}
 CREAM = "#F5ECD2"
+GOLD = "#F6B23C"
+PRICE = "$7"    # Rocket Fuel Cold (sm), the shop's menu price
 
 FRAMES = [
 {frames}
@@ -193,7 +195,17 @@ def main(config):
         delay = DELAY_MS,
         child = render.Column(
             children = [
-                render.Animation(children = [render.Image(src = base64.decode(f)) for f in FRAMES]),
+                # The price sits in the empty top-right corner of the scene,
+                # over the star field and clear of the nose.
+                render.Stack(
+                    children = [
+                        render.Animation(children = [render.Image(src = base64.decode(f)) for f in FRAMES]),
+                        render.Padding(
+                            pad = (52, 0, 0, 0),
+                            child = render.Text(content = PRICE, font = "5x8", color = GOLD),
+                        ),
+                    ],
+                ),
                 # No spacer Box here: a Box of height 0 means "expand" in
                 # pixlet and pushes the wordmark clean off the panel.
                 render.Box(width = 64, height = 8, child = render.Text(content = "ROCKET FUEL", font = "5x8", color = CREAM)),

@@ -5,9 +5,9 @@ palette, pushed standalone by GitHub Actions — no home machine involved.
 
 | App | Preview | What it shows |
 |---|---|---|
-| **logo** | ![Logo preview](logo/preview.gif) | Kaleidoscope Coffee: two pixel-art flamingos leaning in over a pair of espresso cups on the counter, steam puffing off the crema. They blink, shift their weight into the lean, flick a tail, and the steam meets as a heart at the deepest lean. They sleep when the shop is shut. |
+| **logo** | ![Logo preview](logo/preview.gif) ![Big layout](logo/preview-big.gif) | Kaleidoscope Coffee: two pixel-art flamingos leaning in over a pair of espresso cups on the counter, steam puffing off the crema. They blink, shift their weight into the lean, flick a tail, and the steam meets as a heart at the deepest lean. They sleep when the shop is shut. |
 | **news** | — | Greenpoint headlines (Greenpointers + Brooklyn Paper RSS), vertical scroll, breaking-news state |
-| **rocketfuel** | ![Rocket Fuel preview](rocketfuel/preview.gif) | Promo card for Sweetleaf's Rocket Fuel (maple oat-milk cold brew): a pixel-art take on the can — the rider on a gold rocket, flame flickering, splatter stars streaming. Static; pushed daily as a keepalive. |
+| **rocketfuel** | ![Rocket Fuel preview](rocketfuel/preview.gif) | Promo card for Sweetleaf's Rocket Fuel (maple oat-milk cold brew): a pixel-art take on the can — the rider on a gold rocket, flame flickering, splatter stars streaming, the menu price in the corner. Static; pushed daily as a keepalive. |
 | **weather** | ![Weather preview](weather/preview.gif) | Current temp, animated pixel-art conditions, daily high/low, precip chance (NWS + Open-Meteo blend, no API keys) |
 | **clock** | ![Clock preview](clock/preview.gif) | Gold digits, blinking colon, date, seconds bar *(experimental — see note)* |
 
@@ -59,6 +59,19 @@ chunk of a long animation and loops it**, so the minute can stick. Treat
 where the server renders continuously. Pin any clock-style app so
 rotation doesn't restart its animation.
 
+## Deploying
+
+```bash
+./deploy.sh logo|news|rocketfuel [pixlet render args]
+```
+
+A plain `git push` does not reach the panel for up to 5.5 hours: the
+self-looping workflows pin both the run in progress and the queued run to
+the commit they were created at, and the stale loop overwrites any manual
+push every 10–15 minutes until it ends. `deploy.sh` renders and pushes
+straight to the device, cancels the stale runs, and dispatches a fresh one
+on HEAD. It refuses to run with uncommitted or unpushed changes.
+
 ## Local development
 
 ```bash
@@ -85,11 +98,21 @@ Hours live in `make_frames.py` and are baked into the app. Note that a pixlet
 time value has **no weekday attribute** — `now.format("Mon")` is how you get
 one.
 
-Force either state for a look:
+Force either state for a look, and pick the layout:
 
 ```bash
 pixlet render logo/kaleidoscope.star state=asleep --gif --magnify 6 -o /tmp/x.gif
+pixlet render logo/kaleidoscope.star wordmark=off --gif --magnify 6 -o /tmp/big.gif
 ```
+
+### Two layouts
+
+Both are baked into the one `.star`. `wordmark=on` (default): 24px birds
+under the name. `wordmark=off`: 31px birds filling the panel, no name. The
+big bird is taller and lankier rather than wider, because the corridor the
+cups need fixes the body width, so the extra rows go into the neck and legs.
+`push-logo.yml` currently renders the big layout as a trial; the render line
+carries the switch.
 
 ### The wordmark
 
@@ -98,9 +121,8 @@ at ~0.91 relative luminance against the birds' ~0.27 -- 3.4x brighter than
 the thing the card is for. The 4px glyphs also stop K, D, O and C being
 ambiguous at this size. Worth knowing: on a 3mm-pitch panel, 5px text is
 legible to about 6 feet and a 24px bird to about 30, so from where anyone
-stands in the shop the name is decoration and the mark is the message. A
-no-wordmark layout with bigger birds was built once (commit 288420b) and is
-parked until the birds themselves are settled.
+stands in the shop the name is decoration and the mark is the message. The
+no-wordmark layout above exists for exactly this reason.
 
 ### Regenerating the logo card's frames
 

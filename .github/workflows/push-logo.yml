@@ -47,7 +47,9 @@ jobs:
       - name: Render and push every 15 minutes
         run: |
           for i in $(seq 1 22); do
-            if ./pixlet render logo/kaleidoscope.star -o fresh.webp; then
+            # TRIAL (2026-09-09): the 31px no-name layout. Drop `wordmark=off`
+            # to go back to the birds under the name.
+            if ./pixlet render logo/kaleidoscope.star wordmark=off -o fresh.webp; then
               mv fresh.webp logo.webp
             else
               echo "render $i FAILED, reusing previous webp"

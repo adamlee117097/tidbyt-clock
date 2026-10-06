@@ -2,7 +2,7 @@
 
 Merges the two feeds that actually cover the neighborhood — Greenpointers
 (greenpointers.com) and Brooklyn Paper's Greenpoint tag — sorts by
-recency, and vertically scrolls three stories per cycle (rotating by
+recency, and vertically scrolls two stories per cycle (rotating by
 wall-clock so every story gets airtime): white headline, gray one-line
 summary, source tag colored per feed. A story fresher than an hour goes
 breaking-news yellow with +++ brackets. Free RSS, no API keys.
@@ -15,7 +15,11 @@ purpose, so the push loop re-sends the previous webp rather than a
 placeholder.
 
 Pushed by GitHub Actions; the scrolling animation loops on-device
-between pushes.
+between pushes. Pushed apps are cut off at the device's app cycle speed
+(15s by default) -- Tidbyt ignores show_full_animation for API pushes -- so
+the scroll is sized to finish inside that: two stories at 75ms/frame is
+~165-181 frames, 12.4-13.6s. Three stories at 100ms ran 23.8s and the
+third was never seen.
 """
 
 load("http.star", "http")
@@ -28,9 +32,9 @@ FEEDS = [
     {"tag": "BK PAPER", "url": "https://www.brooklynpaper.com/tag/greenpoint/feed/", "accent": "#6BB1FF"},
 ]
 PER_FEED = 6  # candidates per feed; only SHOW_PER_CYCLE are rendered, so this costs no frames
-SHOW_PER_CYCLE = 3
+SHOW_PER_CYCLE = 2
 CACHE_TTL_SECONDS = 600
-ANIMATION_SPEED = 100  # ms per frame
+ANIMATION_SPEED = 75  # ms per frame; see the docstring before raising it
 TZ = "America/New_York"
 BREAKING_SECS = 3600
 MAX_AGE_DAYS = 3

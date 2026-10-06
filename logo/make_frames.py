@@ -73,7 +73,7 @@ WING_UP = """\
 LLWWWWWW..
 .WWWWWW...
 """
-LEG_X = (6, 10)
+LEG_X = (7, 10)
 
 
 def dot(im, x, y, col):
@@ -103,19 +103,21 @@ def bird(head=(14, 5), face=1, bill="fwd", eyes="open", legs="two",
     im = Image.new("RGBA", (32, 32))
     pal = {"P": CORAL, "L": LIGHT, "W": WING}
     by = BODY_Y + dy
-    # legs first so the body overlaps their tops. 2px wide: the panel's
-    # gutters turn a 1px leg into a dotted line (see the README).
+    # legs first so the body overlaps their tops. 1px, at Adam's call after
+    # seeing 2px on the panel (2026-10-06: "a bit too thick") -- despite the
+    # README's gutter lesson. A knee and a 2px foot anchor each leg.
     for i, lx in enumerate(LEG_X):
         if legs == "one" and i == 1:
             # tucked up under the belly: down, then folded back
-            for (x, y) in [(lx, by + 8), (lx + 1, by + 8), (lx, by + 9), (lx + 1, by + 9),
-                           (lx - 1, by + 10), (lx, by + 10), (lx - 3, by + 10), (lx - 2, by + 10)]:
+            for (x, y) in [(lx, by + 8), (lx, by + 9), (lx - 1, by + 10), (lx - 2, by + 10), (lx - 3, by + 9)]:
                 dot(im, x, y, LEG)
             continue
+        knee = 26 + dy
         for y in range(by + 8, 32):
-            dot(im, lx, y, LEG)
-            dot(im, lx + 1, y, LEG)
-        dot(im, lx + 2, 31, LEG)                                  # toes forward
+            # the lower leg steps back one column: a flamingo's "knee"
+            # (really the ankle) bends backward
+            dot(im, lx if y <= knee else lx - 1, y, LEG)
+        dot(im, lx, 31, LEG)                                      # toes forward
     paste(im, BODY, BODY_X, by, pal)
     if wing == "up":
         paste(im, WING_UP, BODY_X, by - 5, pal)

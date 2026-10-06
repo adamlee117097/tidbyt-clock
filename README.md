@@ -138,7 +138,9 @@ pixlet delete --api-token "$(cat ~/.config/tidbyt/token)" \
   worth knowing before judging any layout.
 - **1px lines do not read.** The matrix puts a black gutter between every
   diode, so a single-pixel leg becomes a column of separate dots and the bird
-  looks like it is standing beside its legs. Legs are 2px. Judge pixel art by
+  looks like it is standing beside its legs. (The 2026-10-06 cartoon birds
+  went back to 1px legs anyway, at Adam's call after seeing 2px on the
+  panel -- the neck and steam stay 2px.) Judge pixel art by
   simulating those gutters, not by magnifying a render.
 - Two shades of one hue barely separate at panel brightness — don't rely on
   it to carry a *shape*. It is fine for shading a shape you have already

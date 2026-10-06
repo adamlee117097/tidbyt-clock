@@ -702,10 +702,17 @@ def weather_now():
         p = next((q for q in periods
                   if datetime.datetime.fromisoformat(q["endTime"]) > now), periods[0])
         f = p["shortForecast"].lower()
-        print("NWS:", p["startTime"], p["shortForecast"], p["temperature"])
+        print("NWS:", p["startTime"], p["shortForecast"], p["temperature"],
+              "pop", (p.get("probabilityOfPrecipitation") or {}).get("value"))
     except Exception as e:
         print("NWS failed, no weather:", e)
         return None
+    # NWS says "Slight Chance Rain Showers" at 15% -- only draw rain or snow
+    # when it is actually likely, else fall through to the sky condition.
+    pop = (p.get("probabilityOfPrecipitation") or {}).get("value") or 0
+    if pop < 50:
+        f = f.replace("thunderstorms", "").replace("rain", "").replace("showers", "") \
+             .replace("snow", "").replace("drizzle", "")
     if "thunder" in f:
         return "storm"
     if any(w in f for w in ("snow", "flurr", "sleet", "wintry")):

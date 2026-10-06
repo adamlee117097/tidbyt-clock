@@ -5,7 +5,7 @@ palette, pushed standalone by GitHub Actions — no home machine involved.
 
 | App | Preview | What it shows |
 |---|---|---|
-| **logo** | ![Logo preview](logo/preview.gif) ![Big layout](logo/preview-big.gif) | Kaleidoscope Coffee: two pixel-art flamingos leaning in over a pair of espresso cups on the counter, steam puffing off the crema. They blink, shift their weight into the lean, flick a tail, and the steam meets as a heart at the deepest lean. They sleep when the shop is shut. |
+| **logo** | ![Logo preview](logo/preview.gif) | Kaleidoscope Coffee: two cartoon flamingos over a pair of steaming espresso cups. While the shop is open they do something new every 15 minutes -- lean in until their necks make a heart, take turns sipping, balance on one leg, dance, preen -- with a wing stretch for the first and last half hour. After closing they sleep on one leg under the moon. |
 | **news** | — | Greenpoint headlines (Greenpointers + Brooklyn Paper RSS), vertical scroll, breaking-news state |
 | **rocketfuel** | ![Rocket Fuel preview](rocketfuel/preview.gif) | Promo card for Sweetleaf's Rocket Fuel (maple oat-milk cold brew): a pixel-art take on the can — the rider on a gold rocket, flame flickering, splatter stars streaming, the menu price in the corner. Static; pushed daily as a keepalive. |
 | **weather** | ![Weather preview](weather/preview.gif) | Current temp, animated pixel-art conditions, daily high/low, precip chance (NWS + Open-Meteo blend, no API keys) |
@@ -94,84 +94,31 @@ rather than a shut shop, so the z's are doing real work.
 | Mon–Thu | 8am – 5pm |
 | Fri–Sun | 8am – 6pm |
 
-Hours live in `make_frames.py` and are baked into the app. Note that a pixlet
+Hours live at the top of `logo/kaleidoscope.star` (`OPEN_HOUR`, `CLOSE_HOUR`). Note that a pixlet
 time value has **no weekday attribute** — `now.format("Mon")` is how you get
 one.
 
-Force either state for a look, and pick the layout:
+Force a scene for a look (`heart`, `sip`, `oneleg`, `dance`, `preen`,
+`stretch`, `sleep`):
 
 ```bash
-pixlet render logo/kaleidoscope.star state=asleep --gif --magnify 6 -o /tmp/x.gif
-pixlet render logo/kaleidoscope.star wordmark=off --gif --magnify 6 -o /tmp/big.gif
+pixlet render logo/kaleidoscope.star scene=sip --gif --magnify 6 -o /tmp/x.gif
 ```
-
-### Two layouts
-
-Both are baked into the one `.star`. `wordmark=on` (default): 24px birds
-under the name. `wordmark=off`: 31px birds filling the panel, no name. The
-big bird is taller and lankier rather than wider, because the corridor the
-cups need fixes the body width, so the extra rows go into the neck and legs.
-`push-logo.yml` currently renders the big layout as a trial; the render line
-carries the switch.
-
-### The wordmark
-
-Gray (185) in `CG-pixel-4x5-mono` rather than white in tom-thumb. White sat
-at ~0.91 relative luminance against the birds' ~0.27 -- 3.4x brighter than
-the thing the card is for. The 4px glyphs also stop K, D, O and C being
-ambiguous at this size. Worth knowing: on a 3mm-pitch panel, 5px text is
-legible to about 6 feet and a 24px bird to about 30, so from where anyone
-stands in the shop the name is decoration and the mark is the message. The
-no-wordmark layout above exists for exactly this reason.
 
 ### Regenerating the logo card's frames
 
 ```bash
-python3 logo/make_frames.py     # needs Pillow + numpy
+python3 logo/make_frames.py     # needs Pillow
 ```
 
-The birds are hand-authored pose grids (ASCII, one character per pixel) at
-the top of the script: neutral, half lean, full lean, and asleep. The right
-bird is the left one mirrored. Edit a grid or a constant and re-run; it
-rewrites `logo/kaleidoscope.star` in place. Don't hand-edit the base64 blobs.
-
-Why hand-authored: the first four versions downscaled the shop's actual logo
-artwork, and however carefully (head split off and rotated at full
-resolution, LANCZOS, thresholded, symmetry forced) it never read as a
-flamingo -- the neck came out a thick straight column, the bill a sideways
-bar, the body a blob with an angular wing. The sprites that do read at this
-size all do the same few things: a compact round head, a pale bill hooking
-*down* in front of it, a thin vertical neck rising from the *front* of a
-horizontal body, a pointed tail, long bare legs. So that is what is drawn.
-
-Things the generator refuses to do quietly: it asserts every grid is the
-right shape and uses only known symbols, that each awake pose has exactly one
-eye and the sleeping one none, that the puff climb and the z drift divide the
-frame count, that the cups, counter and heart are mirror-symmetric, that the
-blink and the tail flick actually change a frame, and that the frame after
-the last renders byte-identical to the first. Steam has its own guard: no
-puff or heart pixel may land on, or even diagonally touch, a bird pixel in
-any frame -- LED bloom closes that gap and the steam reads as a growth on
-the bird.
-
-### The motion
-
-Four head poses held pose-to-pose (never tweened 1px at a time -- at this
-size that reads as the sprite melting). On top of the lean:
-
-- **Steam** is 2x2 puffs, not a 1px wisp -- the wisp was a 1px column, the
-  exact thing the gutters turn into a dotted line. Born at the rim, one row
-  per 8 frames, fading as they climb, two in flight per cup with the right cup
-  half a hold behind the left. Capped at 150 gray so no step out-shines coral.
-- **Weight shift**: on the 8-frame deepest lean the body drops one row while
-  the feet stay planted.
-- **Tail flick**: two frames after the lean lands the tail tip lifts one row
-  for three frames. A 2px block, so it survives the gutters.
-- **Blink**: the eye notch fills with coral for two frames, each bird on its
-  own beat. It removes pixels rather than adding a glint.
-- **Steam heart**: during the deepest lean the two cups' steam meets over the
-  counter as a 7x5 heart, in steam gray. `HEART = False` in the generator
-  drops it.
+Redesigned 2026-10-06 as cartoon birds (the earlier hand-drawn and
+downscaled-logo versions are in git history before that date). Body, head
+and wing are small ASCII grids; the **neck is a cubic Bezier** from the front
+of the body to the head, drawn with a 2x2 brush, so a pose is just a head
+position. Standing heads get an S-curve; anything reaching forward (the
+heart, a sip) gets an arch, because a plain curve flattens into a stick.
+The right bird is the left one mirrored. Each scene is 48 frames at 100ms;
+all of them are baked into the `.star`, which picks one from the clock.
 
 `logo/push.sh` pushes from a laptop, reading the API token from
 `~/.config/tidbyt/token` and the device id from `~/.config/tidbyt/device_id`

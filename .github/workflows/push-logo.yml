@@ -1,8 +1,9 @@
 name: Push Kaleidoscope logo card to Tidbyt
 
 # The artwork here never changes -- but what the app RENDERS does. It picks a
-# costume from the date and, more demandingly, decides whether the birds are
-# awake or asleep from the shop's opening hours. A pushed WebP is frozen until
+# scene from the clock (a new one every 15 minutes while open) and, more
+# demandingly, decides whether the birds are awake or asleep from the shop's
+# opening hours. A pushed WebP is frozen until
 # it is replaced, so the push cadence is what the card's accuracy actually
 # depends on: birds still sleeping at 10am would be worse than no feature.
 #
@@ -47,9 +48,7 @@ jobs:
       - name: Render and push every 15 minutes
         run: |
           for i in $(seq 1 22); do
-            # TRIAL (2026-09-09): the 31px no-name layout. Drop `wordmark=off`
-            # to go back to the birds under the name.
-            if ./pixlet render logo/kaleidoscope.star wordmark=off -o fresh.webp; then
+            if ./pixlet render logo/kaleidoscope.star -o fresh.webp; then
               mv fresh.webp logo.webp
             else
               echo "render $i FAILED, reusing previous webp"

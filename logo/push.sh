@@ -3,7 +3,7 @@
 #
 # This is NOT the thing that keeps the card current -- push-logo.yml is, and
 # it runs every fifteen minutes. The artwork never changes, but the render
-# does: the costume comes from the date and awake-vs-asleep from the shop's
+# does: the scene comes from the clock and awake-vs-asleep from the shop's
 # opening hours, both decided at render time. Use this for an out-of-band push
 # after regenerating kaleidoscope.star, or if the card drops out of rotation.
 #

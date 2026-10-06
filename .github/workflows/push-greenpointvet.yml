@@ -4,6 +4,7 @@ name: Push Greenpoint Vet card to friend's Tidbyt
 # using the FRIEND_TIDBYT_* secrets -- not Adam's device.
 #
 # The card is open/closed aware (dog and cat awake 10am-7pm, asleep after),
+# changes scene every 15 minutes, and dresses for holidays and live weather,
 # and a pushed WebP is frozen until replaced, so the push cadence is what
 # keeps it accurate. GitHub throttles free-tier cron to roughly every 1-3
 # hours, so like the logo workflow each run keeps itself alive for ~5.5h
@@ -13,6 +14,10 @@ on:
   schedule:
     - cron: "*/30 * * * *"
   workflow_dispatch:
+    inputs:
+      passes:
+        description: "Push iterations (1 = quick test run with a readable log)"
+        default: "22"
 
 permissions:
   contents: read
@@ -36,6 +41,15 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
 
+      # make_frames.py composes the frames for the current moment (scene by
+      # time, holiday by date, live NWS weather) and needs Pillow.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Pillow
+        run: pip install pillow
+
       - name: Install pixlet
         run: curl -sL https://github.com/tidbyt/pixlet/releases/download/v0.34.0/pixlet_0.34.0_linux_amd64.tar.gz | tar xz
 
@@ -44,7 +58,12 @@ jobs:
       # previous webp so the device at least keeps showing something.
       - name: Render and push every 15 minutes
         run: |
-          for i in $(seq 1 22); do
+          N="${{ inputs.passes || 22 }}"
+          for i in $(seq 1 "$N"); do
+            # If the Python step fails, greenpointvet.star keeps whatever frames
+            # it held (the committed copy on the first pass), so a render still
+            # happens -- check the log for "frames N FAILED".
+            python3 greenpointvet/make_frames.py || echo "frames $i FAILED, keeping previous"
             if ./pixlet render greenpointvet/greenpointvet.star -o fresh.webp; then
               mv fresh.webp vet.webp
             else
@@ -58,5 +77,5 @@ jobs:
                 && echo "push $i OK $(date -u +%H:%M)" \
                 || echo "push $i FAILED"
             fi
-            if [ "$i" -lt 22 ]; then sleep 900; fi
+            if [ "$i" -lt "$N" ]; then sleep 900; fi
           done

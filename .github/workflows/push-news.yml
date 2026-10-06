@@ -51,6 +51,14 @@ jobs:
                 "${{ secrets.TIDBYT_DEVICE_ID }}" news.webp \
                 && echo "push $i OK $(date -u +%H:%M)" \
                 || echo "push $i FAILED"
+              # Same card on the friend's Tidbyt (Greenpoint Vet). Separate
+              # push so a failure on one device never skips the other.
+              ./pixlet push \
+                --api-token "${{ secrets.FRIEND_TIDBYT_API_TOKEN }}" \
+                --installation-id news \
+                "${{ secrets.FRIEND_TIDBYT_DEVICE_ID }}" news.webp \
+                && echo "friend push $i OK $(date -u +%H:%M)" \
+                || echo "friend push $i FAILED"
             fi
             if [ "$i" -lt 33 ]; then sleep 600; fi
           done

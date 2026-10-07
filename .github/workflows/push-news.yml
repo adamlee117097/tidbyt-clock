@@ -59,6 +59,13 @@ jobs:
                 "${{ secrets.FRIEND_TIDBYT_DEVICE_ID }}" news.webp \
                 && echo "friend push $i OK $(date -u +%H:%M)" \
                 || echo "friend push $i FAILED"
+              # Second Tidbyt at the hospital ("Gvh recep", reception desk).
+              ./pixlet push \
+                --api-token "${{ secrets.FRIEND2_TIDBYT_API_TOKEN }}" \
+                --installation-id news \
+                "${{ secrets.FRIEND2_TIDBYT_DEVICE_ID }}" news.webp \
+                && echo "reception push $i OK $(date -u +%H:%M)" \
+                || echo "reception push $i FAILED"
             fi
             if [ "$i" -lt 33 ]; then sleep 600; fi
           done

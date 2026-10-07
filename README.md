@@ -5,7 +5,7 @@ palette, pushed standalone by GitHub Actions — no home machine involved.
 
 | App | Preview | What it shows |
 |---|---|---|
-| **logo** | ![Logo preview](logo/preview.gif) | Kaleidoscope Coffee: two cartoon flamingos over a pair of steaming espresso cups. While the shop is open they do something new every 15 minutes -- lean in until their necks make a heart, take turns sipping, balance on one leg, dance, preen -- with a wing stretch for the first and last half hour. After closing they sleep on one leg under the moon. |
+| **logo** | ![Logo preview](logo/preview.gif) | Kaleidoscope Coffee: two cartoon flamingos over a pair of steaming espresso cups. While the shop is open they do something new every 15 minutes -- lean in until their necks make a heart, take turns sipping, wave hello, hop, balance on one leg, nod off and faceplant into the espresso (coffee fixes it), dance, watch a butterfly, preen, strut -- with a wing stretch for the first and last half hour. After closing they sleep on one leg under the moon. |
 | **news** | — | Greenpoint headlines (Greenpointers + Brooklyn Paper RSS), vertical scroll, breaking-news state |
 | **rocketfuel** | ![Rocket Fuel preview](rocketfuel/preview.gif) | Promo card for Sweetleaf's Rocket Fuel (maple oat-milk cold brew): a pixel-art take on the can — the rider on a gold rocket, flame flickering, splatter stars streaming, the menu price in the corner. Static; pushed daily as a keepalive. |
 | **weather** | ![Weather preview](weather/preview.gif) | Current temp, animated pixel-art conditions, daily high/low, precip chance (NWS + Open-Meteo blend, no API keys) |
@@ -98,8 +98,8 @@ Hours live at the top of `logo/kaleidoscope.star` (`OPEN_HOUR`, `CLOSE_HOUR`). N
 time value has **no weekday attribute** — `now.format("Mon")` is how you get
 one.
 
-Force a scene for a look (`heart`, `sip`, `oneleg`, `dance`, `preen`,
-`stretch`, `sleep`):
+Force a scene for a look (`heart`, `sip`, `oneleg`, `dance`, `preen`, `wave`,
+`flaphop`, `drowsy`, `curious`, `strut`, `stretch`, `sleep`):
 
 ```bash
 pixlet render logo/kaleidoscope.star scene=sip --gif --magnify 6 -o /tmp/x.gif

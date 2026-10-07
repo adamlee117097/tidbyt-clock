@@ -1,7 +1,7 @@
 name: Push Greenpoint Vet card to friend's Tidbyt
 
-# Pushes to the FRIEND's two Tidbyts at Greenpoint Veterinary Hospital (145 Nassau):
-# "Vet Office" (FRIEND_TIDBYT_*) and "Gvh recep" (FRIEND2_TIDBYT_*) -- not Adam's device.
+# Pushes to a FRIEND's Tidbyt (Greenpoint Veterinary Hospital, 145 Nassau),
+# using the FRIEND_TIDBYT_* secrets -- not Adam's device.
 #
 # The card is open/closed aware (dog and cat awake 10am-7pm, asleep after),
 # changes scene every 15 minutes, and dresses for holidays and live weather,
@@ -76,14 +76,6 @@ jobs:
                 "${{ secrets.FRIEND_TIDBYT_DEVICE_ID }}" vet.webp \
                 && echo "push $i OK $(date -u +%H:%M)" \
                 || echo "push $i FAILED"
-              # Second Tidbyt at the hospital ("Gvh recep", reception desk):
-              # same card, separate push so one device failing never skips the other.
-              ./pixlet push \
-                --api-token "${{ secrets.FRIEND2_TIDBYT_API_TOKEN }}" \
-                --installation-id greenpointvet \
-                "${{ secrets.FRIEND2_TIDBYT_DEVICE_ID }}" vet.webp \
-                && echo "reception push $i OK $(date -u +%H:%M)" \
-                || echo "reception push $i FAILED"
             fi
             if [ "$i" -lt "$N" ]; then sleep 900; fi
           done

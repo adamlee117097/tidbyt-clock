@@ -14,6 +14,12 @@ blank card. If neither feed can be read at all the render FAILS on
 purpose, so the push loop re-sends the previous webp rather than a
 placeholder.
 
+A story can be PINNED (see PINNED / PIN_UNTIL): it leads every cycle,
+exempt from the age cutoff and the rotation, with a fixed date instead of
+a relative age, and the other slot rotates through the feeds as usual.
+After PIN_UNTIL the card reverts to plain rotation with no redeploy.
+Render with pin=false for a device that should not carry the pin.
+
 Pushed by GitHub Actions; the scrolling animation loops on-device
 between pushes. Pushed apps are cut off at the device's app cycle speed
 (15s by default) -- Tidbyt ignores show_full_animation for API pushes -- so
@@ -38,6 +44,19 @@ ANIMATION_SPEED = 75  # ms per frame; see the docstring before raising it
 TZ = "America/New_York"
 BREAKING_SECS = 3600
 MAX_AGE_DAYS = 3
+
+# The story about the shop itself, pinned through its last day (Greenpointers,
+# 2026-10-12; headline and first line verbatim). The feed copy of the same
+# story is dropped from the rotation while it is still in the feed.
+PINNED = {
+    "title": "Two Greenpoint Coffee Shops, Kaleidoscope and Mokafé, Are Closing",
+    "description": "Kaleidoscope's last day is November 15.",
+    "meta": "GPTRS - OCT 12",
+    "accent": "#57AB5A",
+    "ts": 0,  # never styled as breaking
+}
+PIN_MATCH = "kaleidoscope"  # a feed title containing this is the same story
+PIN_UNTIL = "2026-11-16"  # local midnight after the last day; then it drops
 
 GP_GREEN = "#1E7A33"
 GOLD = "#FFB000"
@@ -262,13 +281,25 @@ def render_header():
         ],
     )
 
-def render_articles(articles, breaking_lead):
+def is_breaking(article):
+    return article["ts"] > 0 and (time.now().unix - article["ts"]) < BREAKING_SECS
+
+def pinned_story(config):
+    """The PINNED story while pin is on (default) and PIN_UNTIL is ahead."""
+    if not config.bool("pin", True):
+        return None
+    until = time.parse_time(PIN_UNTIL, "2006-01-02", TZ)
+    if time.now().unix >= until.unix:
+        return None
+    return PINNED
+
+def render_articles(articles):
     elements = []
     for idx in range(len(articles)):
         article = articles[idx]
         title = article["title"]
         color = WHITE
-        if idx == 0 and breaking_lead:
+        if is_breaking(article):
             title = "+++ " + title + " +++"
             color = BREAKING
         elements.append(render.WrappedText(
@@ -300,13 +331,21 @@ def render_articles(articles, breaking_lead):
 
 def main(config):
     articles = get_articles()
+    pinned = pinned_story(config)
+    if pinned:
+        articles = [a for a in articles if PIN_MATCH not in a["title"].lower()]
+    rotating = SHOW_PER_CYCLE - (1 if pinned else 0)
 
-    # rotate the visible trio by wall clock so every story gets airtime
-    if len(articles) > SHOW_PER_CYCLE:
+    # rotate the visible stories by wall clock so every story gets airtime;
+    # slot=N (preview only) forces the rotation start
+    if len(articles) > rotating:
         start = time.now().in_location(TZ).minute // 10 % len(articles)
-        articles = [articles[(start + i) % len(articles)] for i in range(SHOW_PER_CYCLE)]
-
-    breaking_lead = articles[0]["ts"] > 0 and (time.now().unix - articles[0]["ts"]) < BREAKING_SECS
+        slot = config.str("slot", "")
+        if slot.isdigit():
+            start = int(slot) % len(articles)
+        articles = [articles[(start + i) % len(articles)] for i in range(rotating)]
+    if pinned:
+        articles = [pinned] + articles
 
     body_h = 32 - HEADER_H - 1
     return render.Root(
@@ -320,7 +359,7 @@ def main(config):
                     scroll_direction = "vertical",
                     offset_start = body_h,
                     child = render.Column(
-                        children = render_articles(articles, breaking_lead),
+                        children = render_articles(articles),
                     ),
                 ),
             ],

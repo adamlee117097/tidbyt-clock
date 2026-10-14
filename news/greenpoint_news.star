@@ -47,7 +47,8 @@ MAX_AGE_DAYS = 3
 
 # The story about the shop itself, pinned through its last day (Greenpointers,
 # 2026-10-12; headline and first line verbatim). The feed copy of the same
-# story is dropped from the rotation while it is still in the feed.
+# story (same headline) is dropped from the rotation while it is still in
+# the feed; a different story about the shop would rotate normally.
 PINNED = {
     "title": "Two Greenpoint Coffee Shops, Kaleidoscope and Mokafé, Are Closing",
     "description": "Kaleidoscope's last day is November 15.",
@@ -55,7 +56,6 @@ PINNED = {
     "accent": "#57AB5A",
     "ts": 0,  # never styled as breaking
 }
-PIN_MATCH = "kaleidoscope"  # a feed title containing this is the same story
 PIN_UNTIL = "2026-11-16"  # local midnight after the last day; then it drops
 
 GP_GREEN = "#1E7A33"
@@ -333,7 +333,7 @@ def main(config):
     articles = get_articles()
     pinned = pinned_story(config)
     if pinned:
-        articles = [a for a in articles if PIN_MATCH not in a["title"].lower()]
+        articles = [a for a in articles if a["title"].lower() != pinned["title"].lower()]
     rotating = SHOW_PER_CYCLE - (1 if pinned else 0)
 
     # rotate the visible stories by wall clock so every story gets airtime;

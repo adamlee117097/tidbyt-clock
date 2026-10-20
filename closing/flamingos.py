@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
-"""Kaleidoscope Coffee flamingo card: two cartoon flamingos facing each other
-over a pair of espresso cups.
+"""The Kaleidoscope flamingos: two cartoon birds facing each other over a pair
+of espresso cups. This was the logo card's generator until the card was
+retired on 2026-10-20 (its .star, workflow and push script are in git history
+at 5b0a1eb); the closing card's make_frames.py imports it for the birds.
 
 Redesign 2026-10-06 in the style of the Greenpoint Vet card: chunky, cute
 birds with a big eye and a blush, doing something different every 15
@@ -9,8 +11,6 @@ a cubic Bezier from the front of the body to the head, so a pose is just a
 head position -- leaning in for a heart, dipping to sip, turning to preen --
 instead of a hand-drawn grid per pose. (The hand-drawn generator before this
 is in git history, commit d3e59e7 and earlier.)
-
-Re-run to rewrite kaleidoscope.star:  python3 logo/make_frames.py
 """
 import base64
 import io
@@ -18,9 +18,6 @@ import math
 from pathlib import Path
 
 from PIL import Image
-
-HERE = Path(__file__).resolve().parent
-OUT_STAR = HERE / "kaleidoscope.star"
 
 # ---------------------------------------------------------------- palette
 CORAL = (242, 90, 60)      # brand #DF513B pushed up -- LEDs mute it
@@ -594,18 +591,3 @@ def b64(im):
     buf = io.BytesIO()
     im.convert("RGB").save(buf, format="PNG")
     return base64.b64encode(buf.getvalue()).decode()
-
-
-def main():
-    star = OUT_STAR.read_text()
-    start = star.index("SCENES = ")
-    end = star.index("# --- end generated ---")
-    body = "".join(
-        '    "%s": [\n%s    ],\n' % (k, "".join('        "%s",\n' % b64(f(t)) for t in range(N)))
-        for k, f in SCENES.items())
-    OUT_STAR.write_text(star[:start] + "SCENES = {\n%s}\n\n" % body + star[end:])
-    print("wrote", OUT_STAR, {k: N for k in SCENES})
-
-
-if __name__ == "__main__":
-    main()

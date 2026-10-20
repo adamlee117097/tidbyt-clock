@@ -2,7 +2,6 @@
 *.gif
 !clock/preview.gif
 !weather/preview.gif
-!logo/preview.gif
 __pycache__/
 !closing/preview.gif
 !greenpointvet/preview.gif

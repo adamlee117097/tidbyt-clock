@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Kaleidoscope closing card: the flamingos' wave, borrowed from the logo card.
+"""Kaleidoscope closing card: the flamingos' wave, from flamingos.py.
 
 The text pages are drawn live by closing.star (the countdown depends on the
 date); only the bird animation and the beating heart are baked here, so the
-birds stay pixel-identical to the logo card's "wave" scene.
+birds stay pixel-identical to the retired logo card's "wave" scene.
 
 Re-run to rewrite closing.star:  python3 closing/make_frames.py
 """
@@ -13,8 +13,8 @@ from pathlib import Path
 from PIL import Image
 
 HERE = Path(__file__).resolve().parent
-sys.path.insert(0, str(HERE.parent / "logo"))
-import make_frames as logo  # noqa: E402
+sys.path.insert(0, str(HERE))
+import flamingos as logo  # noqa: E402
 
 OUT_STAR = HERE / "closing.star"
 

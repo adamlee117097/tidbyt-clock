@@ -5,9 +5,8 @@ palette, pushed standalone by GitHub Actions — no home machine involved.
 
 | App | Preview | What it shows |
 |---|---|---|
-| **logo** | ![Logo preview](logo/preview.gif) | Kaleidoscope Coffee: two cartoon flamingos over a pair of steaming espresso cups. While the shop is open they do something new every 15 minutes -- lean in until their necks make a heart, take turns sipping, wave hello, hop, balance on one leg, nod off and faceplant into the espresso (coffee fixes it), dance, watch a butterfly, preen, strut -- with a wing stretch for the first and last half hour. After closing they sleep on one leg under the moon. |
 | **news** | — | Greenpoint headlines (Greenpointers + Brooklyn Paper RSS), vertical scroll, breaking-news state |
-| **closing** | ![Closing preview](closing/preview.gif) | Kaleidoscope's goodbye: the logo card's flamingos wave, then "OUR LAST DAY / SUN NOV 15" with a live days-left countdown, then "THANK YOU GREENPOINT" with a beating heart. On the last day it reads "TODAY IS OUR LAST DAY"; from the day after, just the birds and the thank you. Pushed twice daily. |
+| **closing** | ![Closing preview](closing/preview.gif) | Kaleidoscope's goodbye: the retired logo card's flamingos wave, then "OUR LAST DAY / SUN NOV 15" with a live days-left countdown, then "THANK YOU GREENPOINT" with a beating heart. On the last day it reads "TODAY IS OUR LAST DAY"; from the day after, just the birds and the thank you. Pushed twice daily. |
 | **weather** | ![Weather preview](weather/preview.gif) | Current temp, animated pixel-art conditions, daily high/low, precip chance (NWS + Open-Meteo blend, no API keys) |
 | **clock** | ![Clock preview](clock/preview.gif) | Gold digits, blinking colon, date, seconds bar *(experimental — see note)* |
 
@@ -42,16 +41,6 @@ every 1–3 hours, so `push-news.yml` keeps a single run alive for ~5.5 hours
 pushing every 10 minutes, with the next scheduled run queued behind it. That
 is why it carries a `concurrency` block and a 355-minute timeout.
 
-The logo card looks like the easy case and isn't. Its artwork never changes,
-but what it *renders* does: it decides whether the birds are awake or asleep
-from the shop's opening hours. A pushed WebP is frozen until it is replaced,
-so the push cadence is what the card's accuracy depends on — birds still
-asleep at 10am would be worse than not having the feature. So `push-logo.yml`
-uses the same self-looping trick as the news app, pushing every 15 minutes,
-which bounds how stale the card can be at a boundary. Its animation is a 3.2-second seamless loop precisely because the
-device only buffers a short chunk of a pushed WebP and replays it — anything
-longer would visibly stall (see the clock note below).
-
 The clock is harder: it pre-renders future frames at 1 fps so the display
 ticks between pushes, but **stock Tidbyt hardware only buffers a small
 chunk of a long animation and loops it**, so the minute can stick. Treat
@@ -62,7 +51,7 @@ rotation doesn't restart its animation.
 ## Deploying
 
 ```bash
-./deploy.sh logo|news|closing [pixlet render args]
+./deploy.sh news|closing [pixlet render args]
 ```
 
 A plain `git push` does not reach the panel for up to 5.5 hours: the
@@ -82,54 +71,26 @@ pixlet render weather/weather.star --gif --magnify 8 -o preview.gif
 Pixlet quirk: keep each app in its own directory — two `.star` files in
 one folder confuse the loader.
 
-### Opening hours
-
-Outside shop hours the birds sleep: heads folded back over their bodies, eyes
-shut, the cups and the counter they sat on cleared away, no steam because the
-machines are off, and a pair of "z"s drifting up between them. A closed card with no motion at all would read as a crashed display
-rather than a shut shop, so the z's are doing real work.
-
-| | Open |
-|---|---|
-| Mon–Thu | 8am – 5pm |
-| Fri–Sun | 8am – 6pm |
-
-Hours live at the top of `logo/kaleidoscope.star` (`OPEN_HOUR`, `CLOSE_HOUR`). Note that a pixlet
-time value has **no weekday attribute** — `now.format("Mon")` is how you get
-one.
-
-Force a scene for a look (`heart`, `sip`, `oneleg`, `dance`, `preen`, `wave`,
-`flaphop`, `drowsy`, `curious`, `strut`, `stretch`, `sleep`):
+### Regenerating the closing card's frames
 
 ```bash
-pixlet render logo/kaleidoscope.star scene=sip --gif --magnify 6 -o /tmp/x.gif
+python3 closing/make_frames.py     # needs Pillow
 ```
 
-### Regenerating the logo card's frames
+The birds come from `closing/flamingos.py`, the generator of the retired
+logo card (2026-10-06 to 2026-10-20; its scenes, opening-hours logic and push
+script are in git history at 5b0a1eb). Body, head and wing are small ASCII
+grids; the **neck is a cubic Bezier** from the front of the body to the head,
+drawn with a 2x2 brush, so a pose is just a head position. The right bird is
+the left one mirrored. The closing card bakes only the 48-frame "wave" scene
+and the heart; its text pages are drawn live by `closing.star`.
+
+Remove an app from a device with (disable its workflow first -- a scheduled
+run will just push it straight back, which looks like the delete failing):
 
 ```bash
-python3 logo/make_frames.py     # needs Pillow
-```
-
-Redesigned 2026-10-06 as cartoon birds (the earlier hand-drawn and
-downscaled-logo versions are in git history before that date). Body, head
-and wing are small ASCII grids; the **neck is a cubic Bezier** from the front
-of the body to the head, drawn with a 2x2 brush, so a pose is just a head
-position. Standing heads get an S-curve; anything reaching forward (the
-heart, a sip) gets an arch, because a plain curve flattens into a stick.
-The right bird is the left one mirrored. Each scene is 48 frames at 100ms;
-all of them are baked into the `.star`, which picks one from the clock.
-
-`logo/push.sh` pushes from a laptop, reading the API token from
-`~/.config/tidbyt/token` and the device id from `~/.config/tidbyt/device_id`
-(both chmod 600). Neither is ever written into a tracked file. Remove the app
-from a device with:
-
-```bash
-# Disable push-logo.yml on the Actions tab first -- a run mid-loop will just
-# push it straight back, which looks like the delete failing.
 pixlet delete --api-token "$(cat ~/.config/tidbyt/token)" \
-  "$(cat ~/.config/tidbyt/device_id)" logo
+  "$(cat ~/.config/tidbyt/device_id)" <installation-id>
 ```
 
 ### Things the panel taught us

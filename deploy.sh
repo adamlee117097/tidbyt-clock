@@ -1,9 +1,9 @@
 #!/bin/bash
 # Put the current commit on the device NOW, for one app.
 #
-#   ./deploy.sh logo|news|closing [extra pixlet render args]
+#   ./deploy.sh news|closing [extra pixlet render args]
 #
-# Why this exists: the self-looping workflows (news, logo) run for ~5.5h and
+# Why this exists: the self-looping workflow (news) runs for ~5.5h and
 # BOTH the run in progress AND the queued scheduled run are pinned to the
 # commit they were created at. A plain `git push` therefore reaches the panel
 # up to 5.5 hours later, and the stale loop overwrites any manual push every
@@ -18,10 +18,9 @@ cd "$(dirname "$0")"
 
 APP="${1:-}"; shift || true
 case "$APP" in
-  logo)       STAR=logo/kaleidoscope.star;    WF=push-logo.yml ;;
   news)       STAR=news/greenpoint_news.star; WF=push-news.yml ;;
   closing)    STAR=closing/closing.star;      WF=push-closing.yml ;;
-  *) echo "usage: $0 logo|news|closing [render args]" >&2; exit 2 ;;
+  *) echo "usage: $0 news|closing [render args]" >&2; exit 2 ;;
 esac
 
 if [ -n "$(git status --porcelain)" ]; then

@@ -36,8 +36,8 @@ jobs:
       # One transient failure must not kill the remaining iterations —
       # the next scheduled run can be hours away. On a render failure,
       # re-push the previous webp so the device at least stays fresh-ish.
-      # Two renders: the shop's card carries the pinned story (the star's
-      # default); the friend's Tidbyt (Greenpoint Vet) gets plain rotation.
+      # One render, pushed to both the shop's Tidbyt and the friend's
+      # (Greenpoint Vet).
       - name: Render and push every 10 minutes
         run: |
           for i in $(seq 1 33); do
@@ -45,11 +45,6 @@ jobs:
               mv fresh.webp news.webp
             else
               echo "render $i FAILED, reusing previous webp"
-            fi
-            if ./pixlet render news/greenpoint_news.star pin=false -o fresh-friend.webp; then
-              mv fresh-friend.webp news-friend.webp
-            else
-              echo "friend render $i FAILED, reusing previous webp"
             fi
             if [ -f news.webp ]; then
               ./pixlet push \
@@ -60,11 +55,11 @@ jobs:
                 || echo "push $i FAILED"
             fi
             # Separate push so a failure on one device never skips the other.
-            if [ -f news-friend.webp ]; then
+            if [ -f news.webp ]; then
               ./pixlet push \
                 --api-token "${{ secrets.FRIEND_TIDBYT_API_TOKEN }}" \
                 --installation-id news \
-                "${{ secrets.FRIEND_TIDBYT_DEVICE_ID }}" news-friend.webp \
+                "${{ secrets.FRIEND_TIDBYT_DEVICE_ID }}" news.webp \
                 && echo "friend push $i OK $(date -u +%H:%M)" \
                 || echo "friend push $i FAILED"
             fi

@@ -1,0 +1,38 @@
+name: Push Kaleidoscope closing card to Tidbyt
+
+# The countdown changes once a day, at local midnight, and nothing else on
+# the card depends on the time. Two runs a day: 05:17 UTC is just after
+# midnight in New York in both EDT and EST (04:xx would be 11pm the night
+# before once the clocks go back on 11/1), and GitHub fires free-tier cron
+# hours late, so the 11:17 run is the backstop that still lands before the
+# 8am open. Shop device only.
+on:
+  schedule:
+    - cron: "17 5,11 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Keepalive
+        run: gh api -X PUT "repos/${GITHUB_REPOSITORY}/actions/workflows/push-closing.yml/enable"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Install pixlet
+        run: curl -sL https://github.com/tidbyt/pixlet/releases/download/v0.34.0/pixlet_0.34.0_linux_amd64.tar.gz | tar xz
+
+      - name: Render and push
+        run: |
+          ./pixlet render closing/closing.star -o closing.webp
+          ./pixlet push \
+            --api-token "${{ secrets.TIDBYT_API_TOKEN }}" \
+            --installation-id closing \
+            "${{ secrets.TIDBYT_DEVICE_ID }}" closing.webp

@@ -6,8 +6,8 @@ palette, pushed standalone by GitHub Actions — no home machine involved.
 | App | Preview | What it shows |
 |---|---|---|
 | **logo** | ![Logo preview](logo/preview.gif) | Kaleidoscope Coffee: two cartoon flamingos over a pair of steaming espresso cups. While the shop is open they do something new every 15 minutes -- lean in until their necks make a heart, take turns sipping, wave hello, hop, balance on one leg, nod off and faceplant into the espresso (coffee fixes it), dance, watch a butterfly, preen, strut -- with a wing stretch for the first and last half hour. After closing they sleep on one leg under the moon. |
-| **news** | — | Greenpoint headlines (Greenpointers + Brooklyn Paper RSS), vertical scroll, breaking-news state; one story can be pinned to lead every cycle until a date (`PINNED` in the star, `pin=false` to render without it) |
-| **rocketfuel** | ![Rocket Fuel preview](rocketfuel/preview.gif) | Promo card for Sweetleaf's Rocket Fuel (maple oat-milk cold brew): a pixel-art take on the can — the rider on a gold rocket, flame flickering, splatter stars streaming, the menu price in the corner. Static; pushed daily as a keepalive. |
+| **news** | — | Greenpoint headlines (Greenpointers + Brooklyn Paper RSS), vertical scroll, breaking-news state |
+| **closing** | ![Closing preview](closing/preview.gif) | Kaleidoscope's goodbye: the logo card's flamingos wave, then "OUR LAST DAY / SUN NOV 15" with a live days-left countdown, then "THANK YOU GREENPOINT" with a beating heart. On the last day it reads "TODAY IS OUR LAST DAY"; from the day after, just the birds and the thank you. Pushed twice daily. |
 | **weather** | ![Weather preview](weather/preview.gif) | Current temp, animated pixel-art conditions, daily high/low, precip chance (NWS + Open-Meteo blend, no API keys) |
 | **clock** | ![Clock preview](clock/preview.gif) | Gold digits, blinking colon, date, seconds bar *(experimental — see note)* |
 
@@ -62,7 +62,7 @@ rotation doesn't restart its animation.
 ## Deploying
 
 ```bash
-./deploy.sh logo|news|rocketfuel [pixlet render args]
+./deploy.sh logo|news|closing [pixlet render args]
 ```
 
 A plain `git push` does not reach the panel for up to 5.5 hours: the

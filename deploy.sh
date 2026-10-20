@@ -1,7 +1,7 @@
 #!/bin/bash
 # Put the current commit on the device NOW, for one app.
 #
-#   ./deploy.sh logo|news|rocketfuel [extra pixlet render args]
+#   ./deploy.sh logo|news|closing [extra pixlet render args]
 #
 # Why this exists: the self-looping workflows (news, logo) run for ~5.5h and
 # BOTH the run in progress AND the queued scheduled run are pinned to the
@@ -20,8 +20,8 @@ APP="${1:-}"; shift || true
 case "$APP" in
   logo)       STAR=logo/kaleidoscope.star;    WF=push-logo.yml ;;
   news)       STAR=news/greenpoint_news.star; WF=push-news.yml ;;
-  rocketfuel) STAR=rocketfuel/rocketfuel.star; WF=push-rocketfuel.yml ;;
-  *) echo "usage: $0 logo|news|rocketfuel [render args]" >&2; exit 2 ;;
+  closing)    STAR=closing/closing.star;      WF=push-closing.yml ;;
+  *) echo "usage: $0 logo|news|closing [render args]" >&2; exit 2 ;;
 esac
 
 if [ -n "$(git status --porcelain)" ]; then

@@ -6,7 +6,7 @@ palette, pushed standalone by GitHub Actions — no home machine involved.
 | App | Preview | What it shows |
 |---|---|---|
 | **news** | — | Greenpoint headlines (Greenpointers + Brooklyn Paper RSS), vertical scroll, breaking-news state |
-| **closing** | ![Closing preview](closing/preview.gif) | Kaleidoscope's goodbye: the retired logo card's flamingos wave, then "OUR LAST DAY / SUN NOV 15" with a live days-left countdown, then "THANK YOU GREENPOINT" with a beating heart. On the last day it reads "TODAY IS OUR LAST DAY"; from the day after, just the birds and the thank you. Pushed twice daily. |
+| **closing** | ![Closing preview](closing/preview.gif) | Kaleidoscope's goodbye: the shop's "KALEIDOSCOPE / COFFEE" wordmark, then "OUR LAST DAY / SUN NOV 15" with a live days-left countdown, then "THANK YOU GREENPOINT" with a beating heart. On the last day it reads "TODAY IS OUR LAST DAY"; from the day after, just the wordmark and the thank you. Pushed twice daily. |
 | **weather** | ![Weather preview](weather/preview.gif) | Current temp, animated pixel-art conditions, daily high/low, precip chance (NWS + Open-Meteo blend, no API keys) |
 | **clock** | ![Clock preview](clock/preview.gif) | Gold digits, blinking colon, date, seconds bar *(experimental — see note)* |
 
@@ -77,13 +77,13 @@ one folder confuse the loader.
 python3 closing/make_frames.py     # needs Pillow
 ```
 
-The birds come from `closing/flamingos.py`, the generator of the retired
-logo card (2026-10-06 to 2026-10-20; its scenes, opening-hours logic and push
-script are in git history at 5b0a1eb). Body, head and wing are small ASCII
-grids; the **neck is a cubic Bezier** from the front of the body to the head,
-drawn with a 2x2 brush, so a pose is just a head position. The right bird is
-the left one mirrored. The closing card bakes only the 48-frame "wave" scene
-and the heart; its text pages are drawn live by `closing.star`.
+The wordmark is the logo's two-line lockup redrawn letter by letter: each
+glyph is an ASCII grid in `GLYPHS`, 8px tall with 2px strokes, so
+"KALEIDOSCOPE" is 63px wide. The generator bakes it and the heart into
+`closing.star`, where the text pages are drawn live. The
+flamingos that opened the card until 2026-10-20 came from `flamingos.py`
+(git history at cc6ce18); the retired logo card itself -- its scenes,
+opening-hours logic and push script -- is at 5b0a1eb.
 
 Remove an app from a device with (disable its workflow first -- a scheduled
 run will just push it straight back, which looks like the delete failing):
@@ -134,10 +134,14 @@ pixlet delete --api-token "$(cat ~/.config/tidbyt/token)" \
 - Check relative luminance against the *subject*, not just against black. The
   firmware applies CIE luminance correction, so sRGB-space luminance is the
   right model: coral ≈ 0.27, gold ≈ 0.56, white ≈ 0.91. Anything brighter than
-  the birds competes with them; that is why the wordmark is gray and the
-  steam is capped at 150.
+  the birds competes with them; that is why the logo card's wordmark was
+  gray and its steam capped at 150.
 - Legibility distance on a 3mm pitch: roughly 1 inch of cap height per 10
   feet. 5px text reaches ~6 feet; a 26px bird ~30 feet.
+- A wordmark shrunk to fit 64px does not survive: the logo's lettering came
+  out 6px tall and read as mush at any threshold. Redraw the letters on the
+  pixel grid instead, keeping the cues (weight, round O/C/S), with 2px
+  strokes -- a stock 1px font fits but breaks into dots.
 - Judge through an LED-gutter simulator (each pixel a square with a gap and a
   faint bloom), never a plain magnified render. pixlet also merges identical
   consecutive frames, so webp frame N is not generator frame N -- expand by

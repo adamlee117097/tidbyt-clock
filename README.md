@@ -6,7 +6,7 @@ palette, pushed standalone by GitHub Actions — no home machine involved.
 | App | Preview | What it shows |
 |---|---|---|
 | **news** | — | Greenpoint headlines (Greenpointers + Brooklyn Paper RSS), vertical scroll, breaking-news state |
-| **closing** | ![Closing preview](closing/preview.gif) | Kaleidoscope's goodbye: the shop's "KALEIDOSCOPE / COFFEE" wordmark, then "OUR LAST DAY / SUN NOV 15" with a live days-left countdown, then "THANK YOU GREENPOINT" with a beating heart. On the last day it reads "TODAY IS OUR LAST DAY"; from the day after, just the wordmark and the thank you. Pushed twice daily. |
+| **closing** | ![Closing preview](closing/preview.gif) | Kaleidoscope's goodbye: the shop's "KALEIDOSCOPE / COFFEE" wordmark with a cream glint sweeping across it, then "OUR LAST DAY / SUN NOV 15" with a live days-left countdown, then "THANK YOU GREENPOINT" with a beating heart. On the last day it reads "TODAY IS OUR LAST DAY"; from the day after, just the wordmark and the thank you. Pushed twice daily. |
 | **weather** | ![Weather preview](weather/preview.gif) | Current temp, animated pixel-art conditions, daily high/low, precip chance (NWS + Open-Meteo blend, no API keys) |
 | **clock** | ![Clock preview](clock/preview.gif) | Gold digits, blinking colon, date, seconds bar *(experimental — see note)* |
 
@@ -79,8 +79,10 @@ python3 closing/make_frames.py     # needs Pillow
 
 The wordmark is the logo's two-line lockup redrawn letter by letter: each
 glyph is an ASCII grid in `GLYPHS`, 8px tall with 2px strokes, so
-"KALEIDOSCOPE" is 63px wide. The generator bakes it and the heart into
-`closing.star`, where the text pages are drawn live. The
+"KALEIDOSCOPE" is 63px wide. The generator bakes it, the glint's sweep
+across it (one image per 3px step; cream, because a lighter coral would not
+separate on the panel) and the heart into `closing.star`, where the text
+pages are drawn live. The card runs at 50ms a frame for the glint's sake. The
 flamingos that opened the card until 2026-10-20 came from `flamingos.py`
 (git history at cc6ce18); the retired logo card itself -- its scenes,
 opening-hours logic and push script -- is at 5b0a1eb.

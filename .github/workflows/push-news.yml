@@ -9,9 +9,14 @@ permissions:
   contents: read
   actions: write
 
-# GitHub throttles free-tier cron to ~1-3h in practice, so each run keeps
-# itself alive for ~5.5h pushing every 10 minutes, and the next scheduled
-# run queues behind it (cancel-in-progress must stay false).
+# Each run keeps itself alive for ~5.5h pushing every 10 minutes. GitHub
+# fires this cron only every 1-9 hours and holds at most one pending run, so
+# on a 4-trigger day the chain broke for up to 2 hours; each run therefore
+# queues its own successor once it has pushed (see the loop), and cron only
+# has to restart a broken chain. cancel-in-progress must stay false.
+#
+# To stop it: disable the workflow AND cancel the running and pending runs
+# (Keepalive re-enables it at the start of every run).
 concurrency:
   group: push-news
   cancel-in-progress: false
@@ -30,38 +35,106 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
 
+      # Retried, because one failed download used to cost a whole 5.5h run,
+      # and checked against the release's checksums.txt, because this binary
+      # runs with both devices' tokens.
       - name: Install pixlet
-        run: curl -sL https://github.com/tidbyt/pixlet/releases/download/v0.34.0/pixlet_0.34.0_linux_amd64.tar.gz | tar xz
-
-      # One transient failure must not kill the remaining iterations —
-      # the next scheduled run can be hours away. On a render failure,
-      # re-push the previous webp so the device at least stays fresh-ish.
-      # One render, pushed to both the shop's Tidbyt and the friend's
-      # (Greenpoint Vet).
-      - name: Render and push every 10 minutes
         run: |
+          curl -fsSL --retry 5 --retry-all-errors -o pixlet.tgz https://github.com/tidbyt/pixlet/releases/download/v0.34.0/pixlet_0.34.0_linux_amd64.tar.gz
+          echo "5833d0711803dd6374e696a5d02462f766b299df6413486021fb4035dcc54640  pixlet.tgz" | sha256sum -c -
+          tar xzf pixlet.tgz pixlet
+
+      # One render, pushed to both the shop's Tidbyt and the friend's
+      # (Greenpoint Vet). One transient failure must not kill the remaining
+      # iterations, so nothing in the loop exits; the run fails at the end
+      # instead if a device missed pushes.
+      - name: Render and push every 10 minutes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHOP_TOKEN: ${{ secrets.TIDBYT_API_TOKEN }}
+          SHOP_DEVICE: ${{ secrets.TIDBYT_DEVICE_ID }}
+          VET_TOKEN: ${{ secrets.FRIEND_TIDBYT_API_TOKEN }}
+          VET_DEVICE: ${{ secrets.FRIEND_TIDBYT_DEVICE_ID }}
+        run: |
+          STAR=news/greenpoint_news.star
+
+          # The card reads every source from a mirror on this runner, never
+          # the live sites: pixlet gives up on a site after a fixed 5s and the
+          # whole render fails with it. Each source is fetched here with a
+          # longer timeout, and a failed or broken fetch keeps the last good
+          # copy, so the card shows real stories with true ages. The star
+          # lists its sources itself (sources=1).
+          mkdir -p mirror
+          python3 -m http.server 8765 --bind 127.0.0.1 --directory mirror >/dev/null 2>&1 &
+          ./pixlet render "$STAR" sources=1 -o /dev/null | sed -n 's/^\[[^]]*\] SOURCE //p' > sources.txt
+          cat sources.txt
+          refresh() {
+            while read -r key kind url; do
+              # the event listings change daily; an hour-old copy will do
+              if [ "$kind" = json ] && [ -n "$(find "mirror/$key" -mmin -60 2>/dev/null)" ]; then continue; fi
+              # timeout: curl honours Retry-After between retries, and a
+              # WordPress site in maintenance answers with 600 seconds
+              if timeout 45 curl -fsSL --max-redirs 3 --max-time 20 --retry 2 -o "mirror/$key.new" "$url" \
+                  && python3 -I news/check_feed.py "$kind" "mirror/$key.new"; then
+                mv "mirror/$key.new" "mirror/$key"
+              else
+                rm -f "mirror/$key.new"
+                echo "::warning::fetch $key failed$([ -f "mirror/$key" ] && echo ', kept the last good copy')"
+              fi
+            done < sources.txt
+          }
+
+          start=$(date +%s)
+          chained=0; shop_ok=0; vet_ok=0
           for i in $(seq 1 33); do
-            if ./pixlet render news/greenpoint_news.star -o fresh.webp; then
+            refresh
+            # The push number picks the card's pair (see the star). Passed
+            # in, so a slow refresh can't land two renders in one 10-minute
+            # slot and show the same pair twice.
+            slot=$((start / 600 + i - 1))
+            if timeout 60 ./pixlet render "$STAR" mirror=http://127.0.0.1:8765 slot=$slot -o fresh.webp; then
               mv fresh.webp news.webp
             else
-              echo "render $i FAILED, reusing previous webp"
+              echo "::warning::render $i failed, reusing the previous webp"
             fi
             if [ -f news.webp ]; then
-              ./pixlet push \
-                --api-token "${{ secrets.TIDBYT_API_TOKEN }}" \
-                --installation-id news \
-                "${{ secrets.TIDBYT_DEVICE_ID }}" news.webp \
-                && echo "push $i OK $(date -u +%H:%M)" \
-                || echo "push $i FAILED"
+              # Separate pushes so a failure on one device never skips the
+              # other; a push has no timeout of its own and once hung 128s.
+              if timeout 90 ./pixlet push --api-token "$SHOP_TOKEN" --installation-id news "$SHOP_DEVICE" news.webp; then
+                shop_ok=$((shop_ok + 1)); echo "push $i OK $(date -u +%H:%M)"
+              else
+                echo "::warning::push $i FAILED"
+              fi
+              if timeout 90 ./pixlet push --api-token "$VET_TOKEN" --installation-id news "$VET_DEVICE" news.webp; then
+                vet_ok=$((vet_ok + 1)); echo "friend push $i OK $(date -u +%H:%M)"
+              else
+                echo "::warning::friend push $i FAILED"
+              fi
             fi
-            # Separate push so a failure on one device never skips the other.
-            if [ -f news.webp ]; then
-              ./pixlet push \
-                --api-token "${{ secrets.FRIEND_TIDBYT_API_TOKEN }}" \
-                --installation-id news \
-                "${{ secrets.FRIEND_TIDBYT_DEVICE_ID }}" news.webp \
-                && echo "friend push $i OK $(date -u +%H:%M)" \
-                || echo "friend push $i FAILED"
+
+            # Queue the next run -- only after a push has gone through, so a
+            # run that dies at once can't start a chain of instant failures.
+            # Queued again near the end: the new one replaces the pending one
+            # and checks out the latest commit, not the one from 5 hours ago.
+            if [ $((shop_ok + vet_ok)) -gt 0 ] && { [ "$chained" = 0 ] || [ "$i" -eq 32 ]; }; then
+              if gh workflow run push-news.yml --ref "$GITHUB_REF_NAME"; then
+                chained=1; echo "queued the next run"
+              fi
             fi
-            if [ "$i" -lt 33 ]; then sleep 600; fi
+
+            # Sleep to a fixed schedule rather than a fixed 600s, so slow
+            # iterations don't drift the pushes off the card's 10-minute
+            # rotation.
+            if [ "$i" -lt 33 ]; then
+              left=$((start + i * 600 - $(date +%s)))
+              if [ "$left" -gt 0 ]; then sleep "$left"; fi
+            fi
           done
+
+          echo "Pushes that went through: shop $shop_ok of 33, vet $vet_ok of 33" >> "$GITHUB_STEP_SUMMARY"
+          # A dead token or device id used to leave a green run and a frozen
+          # screen. A blip or two is normal; more than three misses is not.
+          if [ "$shop_ok" -lt 30 ] || [ "$vet_ok" -lt 30 ]; then
+            echo "::error::a device missed pushes: shop $shop_ok/33, vet $vet_ok/33"
+            exit 1
+          fi

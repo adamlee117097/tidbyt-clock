@@ -35,9 +35,15 @@ TOKEN="$(cat "$CONF/token")"; DEVICE="$(cat "$CONF/device_id")"
 [ -n "$TOKEN" ] && [ -n "$DEVICE" ] || { echo "deploy: missing token or device id" >&2; exit 1; }
 
 OUT="$(mktemp -t tidbyt-XXXXXX.webp)"; trap 'rm -f "$OUT"' EXIT
-pixlet render "$STAR" "$@" -o "$OUT"
-pixlet push --api-token "$TOKEN" --installation-id "$APP" "$DEVICE" "$OUT"
-echo "device: pushed $(wc -c < "$OUT") bytes to installation '$APP'"
+# Rendered here, news reads its sources live, and one that answers slower
+# than pixlet's fixed 5s fails the render. The run dispatched below reads
+# them from its own mirror, so carry on and let it do the first push.
+if pixlet render "$STAR" "$@" -o "$OUT"; then
+  pixlet push --api-token "$TOKEN" --installation-id "$APP" "$DEVICE" "$OUT"
+  echo "device: pushed $(wc -c < "$OUT") bytes to installation '$APP'"
+else
+  echo "deploy: local render failed; the dispatched run will push instead" >&2
+fi
 
 for id in $(gh run list --workflow "$WF" --json databaseId,status \
              -q '.[] | select(.status=="in_progress" or .status=="queued" or .status=="pending" or .status=="waiting") | .databaseId'); do

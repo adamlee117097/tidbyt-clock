@@ -5,7 +5,7 @@ palette, pushed standalone by GitHub Actions — no home machine involved.
 
 | App | Preview | What it shows |
 |---|---|---|
-| **news** | — | Greenpoint headlines (Greenpointers + Brooklyn Paper RSS), vertical scroll, breaking-news state |
+| **news** | — | Greenpoint-only headlines (Greenpointers, Brooklyn Paper, NY YIMBY and Greenline RSS; Williamsburg and sponsored posts filtered out) plus what's coming up in the neighborhood's parks and streets (NYC permitted events and NYC Parks listings), vertical scroll, breaking-news state |
 | **closing** | ![Closing preview](closing/preview.gif) | Kaleidoscope's goodbye: the shop's "KALEIDOSCOPE / COFFEE" wordmark with a cream glint sweeping across it, then "OUR LAST DAY / SUN NOV 15" with a live days-left countdown, then "THANK YOU GREENPOINT" with a beating heart. On the last day it reads "TODAY IS OUR LAST DAY"; from the day after, just the wordmark and the thank you. Pushed twice daily. |
 | **weather** | ![Weather preview](weather/preview.gif) | Current temp, animated pixel-art conditions, daily high/low, precip chance (NWS + Open-Meteo blend, no API keys) |
 | **clock** | ![Clock preview](clock/preview.gif) | Gold digits, blinking colon, date, seconds bar *(experimental — see note)* |
@@ -36,10 +36,20 @@ your server's apps folder.
 A Tidbyt shows whatever WebP it was last pushed. The weather app is a
 short looping animation re-pushed every 10 minutes — a natural fit.
 
-The news app is the awkward case: GitHub throttles free-tier cron to roughly
-every 1–3 hours, so `push-news.yml` keeps a single run alive for ~5.5 hours
-pushing every 10 minutes, with the next scheduled run queued behind it. That
-is why it carries a `concurrency` block and a 355-minute timeout.
+The news app is the awkward case: GitHub throttles free-tier cron to anywhere
+from 1 to 9 hours apart, so `push-news.yml` keeps a single run alive for ~5.5
+hours pushing every 10 minutes. GitHub holds only one pending run, so each run
+also queues its own successor once it has pushed, and cron only has to restart
+a broken chain. That is why it carries a `concurrency` block and a 355-minute
+timeout. To stop it, disable the workflow *and* cancel the running and pending
+runs (the Keepalive step re-enables it at the start of every run). A run fails
+(red in Actions) when either device missed more than three of its 33 pushes.
+
+The news card never reads its sources live on the runner: pixlet gives up on
+a site after a fixed 5 seconds and the whole render fails with it. The
+workflow mirrors each source to localhost first (`sources=1` makes the star
+list them), checks it with `news/check_feed.py`, and keeps the last good copy
+when a fetch fails.
 
 The clock is harder: it pre-renders future frames at 1 fps so the display
 ticks between pushes, but **stock Tidbyt hardware only buffers a small
@@ -144,6 +154,10 @@ pixlet delete --api-token "$(cat ~/.config/tidbyt/token)" \
   out 6px tall and read as mush at any threshold. Redraw the letters on the
   pixel grid instead, keeping the cues (weight, round O/C/S), with 2px
   strokes -- a stock 1px font fits but breaks into dots.
+- tom-thumb draws N three pixels wide, as a solid block that reads as M, and
+  CG-pixel-3x5's N is an arch that reads as a lowercase n. The news card draws
+  every N itself, four pixels wide (the shape pixlet's 4x5 font uses), and
+  wraps its own lines so the extra pixel is counted.
 - Judge through an LED-gutter simulator (each pixel a square with a gap and a
   faint bloom), never a plain magnified render. pixlet also merges identical
   consecutive frames, so webp frame N is not generator frame N -- expand by

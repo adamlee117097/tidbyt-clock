@@ -6,7 +6,7 @@ palette, pushed standalone by GitHub Actions — no home machine involved.
 | App | Preview | What it shows |
 |---|---|---|
 | **news** | — | Greenpoint-only headlines (Greenpointers, Brooklyn Paper, NY YIMBY and Greenline RSS; Williamsburg and sponsored posts filtered out) plus what's coming up in the neighborhood's parks and streets (NYC permitted events and NYC Parks listings), vertical scroll, breaking-news state |
-| **closing** | ![Closing preview](closing/preview.gif) | Kaleidoscope's goodbye: the shop's "KALEIDOSCOPE / COFFEE" wordmark with a cream glint sweeping across it, then "OUR LAST DAY / SUN NOV 15" with a live days-left countdown, then "THANK YOU GREENPOINT" with a beating heart. On the last day it reads "TODAY IS OUR LAST DAY"; from the day after, just the wordmark and the thank you. Pushed twice daily. |
+| **closing** | ![Closing preview](closing/preview.gif) | Kaleidoscope's goodbye: the shop's "KALEIDOSCOPE / COFFEE" wordmark with a cream glint sweeping across it, then "OUR LAST DAY / SUN NOV 15" with a live days-left countdown, then "THANK YOU GREENPOINT" with a beating heart. On the last day it reads "TODAY IS OUR LAST DAY"; from the day after, just the wordmark and the thank you. Pushed by the news loop when the New York date turns. |
 | **weather** | ![Weather preview](weather/preview.gif) | Current temp, animated pixel-art conditions, daily high/low, precip chance (NWS + Open-Meteo blend, no API keys) |
 | **clock** | ![Clock preview](clock/preview.gif) | Gold digits, blinking colon, date, seconds bar *(experimental — see note)* |
 
@@ -44,6 +44,15 @@ a broken chain. That is why it carries a `concurrency` block and a 355-minute
 timeout. To stop it, disable the workflow *and* cancel the running and pending
 runs (the Keepalive step re-enables it at the start of every run). A run fails
 (red in Actions) when either device missed more than three of its 33 pushes.
+The same loop pushes the closing card to the shop device whenever the New
+York date changes. `push-greenpointvet.yml` works the same way: 22 pushes
+15 minutes apart, its own successor queued, red after more than three misses.
+
+Every scheduled push uses `--background`. Without it Tidbyt shows the image
+immediately, interrupting and resetting the device's rotation, night mode
+included (see the push endpoint in https://api.tidbyt.com/swagger.json), so
+a 10-minute loop would keep yanking the display to its card. `deploy.sh`
+pushes in the foreground on purpose, so you see the change at once.
 
 The news card never reads its sources live on the runner: pixlet gives up on
 a site after a fixed 5 seconds and the whole render fails with it. The

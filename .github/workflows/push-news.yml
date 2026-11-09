@@ -26,7 +26,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 355
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Runs FIRST so a later render/push failure can't skip it: this is
       # what stops GitHub from auto-disabling the schedule after 60 days.
@@ -39,7 +39,7 @@ jobs:
       # backoff, because one bad download (504s, 11/8-11/9) failed whole runs;
       # checked against the release checksum, because this binary gets device tokens.
       - name: Cache pixlet
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: pixlet.tgz
           key: pixlet-0.34.0-linux-amd64
@@ -77,9 +77,10 @@ jobs:
           ./pixlet render "$STAR" sources=1 -o /dev/null | sed -n 's/^\[[^]]*\] SOURCE //p' > sources.txt
           cat sources.txt
           refresh() {
-            while read -r key kind url; do
-              # the event listings change daily; an hour-old copy will do
-              if [ "$kind" = json ] && [ -n "$(find "mirror/$key" -mmin -60 2>/dev/null)" ]; then continue; fi
+            while read -r key kind url every; do
+              # the event listings change daily, and Google News must not be
+              # asked every 10 minutes; an hour-old copy will do for both
+              if { [ "$kind" = json ] || [ "$every" = hourly ]; } && [ -n "$(find "mirror/$key" -mmin -60 2>/dev/null)" ]; then continue; fi
               # timeout: curl honours Retry-After between retries, and a
               # WordPress site in maintenance answers with 600 seconds
               if timeout 45 curl -fsSL --max-redirs 3 --max-time 20 --retry 2 -o "mirror/$key.new" "$url" \
@@ -93,7 +94,7 @@ jobs:
           }
 
           start=$(date +%s)
-          chained=0; shop_ok=0; vet_ok=0
+          chained=0; shop_ok=0; vet_ok=0; closing_day=""
           for i in $(seq 1 33); do
             refresh
             # The push number picks the card's pair (see the star). Passed
@@ -108,15 +109,31 @@ jobs:
             if [ -f news.webp ]; then
               # Separate pushes so a failure on one device never skips the
               # other; a push has no timeout of its own and once hung 128s.
-              if timeout 90 ./pixlet push --api-token "$SHOP_TOKEN" --installation-id news "$SHOP_DEVICE" news.webp; then
+              # --background: without it every push jumps the device to this
+              # card, restarts its rotation and breaks through night mode.
+              if timeout 90 ./pixlet push --background --api-token "$SHOP_TOKEN" --installation-id news "$SHOP_DEVICE" news.webp; then
                 shop_ok=$((shop_ok + 1)); echo "push $i OK $(date -u +%H:%M)"
               else
                 echo "::warning::push $i FAILED"
               fi
-              if timeout 90 ./pixlet push --api-token "$VET_TOKEN" --installation-id news "$VET_DEVICE" news.webp; then
+              if timeout 90 ./pixlet push --background --api-token "$VET_TOKEN" --installation-id news "$VET_DEVICE" news.webp; then
                 vet_ok=$((vet_ok + 1)); echo "friend push $i OK $(date -u +%H:%M)"
               else
                 echo "::warning::friend push $i FAILED"
+              fi
+            fi
+
+            # The Kaleidoscope closing card (shop device only) changes once a
+            # day, at New York midnight. It used to have its own twice-daily
+            # workflow, but GitHub never fired the midnight slot, so it rides
+            # this loop: pushed on the first pass and whenever the date turns.
+            today=$(TZ=America/New_York date +%F)
+            if [ "$today" != "$closing_day" ]; then
+              if timeout 60 ./pixlet render closing/closing.star -o closing.webp \
+                  && timeout 90 ./pixlet push --background --api-token "$SHOP_TOKEN" --installation-id closing "$SHOP_DEVICE" closing.webp; then
+                closing_day=$today; echo "closing card pushed for $today"
+              else
+                echo "::warning::closing card push $i FAILED, retrying next pass"
               fi
             fi
 

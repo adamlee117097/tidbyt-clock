@@ -19,7 +19,7 @@ cd "$(dirname "$0")"
 APP="${1:-}"; shift || true
 case "$APP" in
   news)       STAR=news/greenpoint_news.star; WF=push-news.yml ;;
-  closing)    STAR=closing/closing.star;      WF=push-closing.yml ;;
+  closing)    STAR=closing/closing.star;      WF=push-news.yml ;;  # the news loop pushes it
   *) echo "usage: $0 news|closing [render args]" >&2; exit 2 ;;
 esac
 

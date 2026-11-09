@@ -60,7 +60,29 @@ FEEDS = [
     {"key": "yimby", "tag": "YIMBY", "url": "https://newyorkyimby.com/?s=greenpoint&feed=rss2", "accent": "#C38BFF"},
     # a monthly paper: it posts a whole issue at once, then nothing for weeks
     {"key": "greenline", "tag": "GREENLINE", "url": "https://northbrooklynnews.com/tag/greenpoint/feed/", "accent": "#2EC4B6"},
+    # Google News search, for the outlets above don't cover (PIX11, Brooklyn
+    # News Service...). Added 11/9 when the pool sank to six stories, all
+    # 3-5 days old, over a weekend. Its headline must say Greenpoint; outlets
+    # read directly above, and Patch (held), are skipped. The workflow
+    # fetches it hourly, not every push.
+    {"key": "gnews", "tag": "", "url": "https://news.google.com/rss/search?q=Greenpoint+Brooklyn+when:7d&hl=en-US&gl=US&ceid=US:en", "accent": "#F28BB0", "aggregator": True, "hourly": True, "scan": 60},
 ]
+
+# an aggregator story from one of these is a duplicate (or held)
+SKIP_SOURCES = ["Greenpointers", "Brooklyn Paper", "New York YIMBY", "Greenline", "North Brooklyn News", "Patch"]
+
+# short meta-line names for outlets that show up in the aggregator
+SOURCE_TAGS = {
+    "Brooklyn News Service": "BK NEWS",
+    "Bushwick Daily": "BUSHWICK",
+    "The New York Times": "NYT",
+    "New York Post": "NY POST",
+    "Brooklyn Eagle": "BK EAGLE",
+    "NBC New York": "NBC NY",
+    "ABC7 New York": "ABC7",
+    "CBS New York": "CBS NY",
+    "Brownstoner": "BRWNSTNR",
+}
 
 # Permits filed with the city for events in the 94th Precinct, plus races
 # and parades that pass through it (the marathon runs up Manhattan Ave).
@@ -348,7 +370,10 @@ def all_digits(s, spans):
 def parse_pub(pub):
     """RFC-822 date in the one shape WordPress emits --
     'Mon, 02 Jan 2006 15:04:05 +0000' -- or None. Each field is checked
-    first: a bad weekday, month or digit used to crash the render."""
+    first: a bad weekday, month or digit used to crash the render.
+    Google News writes the zone as GMT, which is read as +0000."""
+    if pub and len(pub) == 29 and pub.endswith(" GMT"):
+        pub = pub[:25] + " +0000"
     if not pub or len(pub) != 31:
         return None
     if pub[0:3] not in WEEKDAYS or pub[3:5] != ", " or pub[8:11] not in MONTHS:
@@ -406,6 +431,14 @@ def fetch(src, mirror):
         return None
     return res.body()
 
+def source_tag(source):
+    if source in SOURCE_TAGS:
+        return SOURCE_TAGS[source]
+    tag = source.upper()
+    if fits(tag + " 23H"):
+        return tag
+    return tag.split(" ")[0]
+
 def is_greenpoint(title, cats):
     if re.match(GREENPOINT, title):
         return True
@@ -441,18 +474,30 @@ def get_articles(mirror):
         read += 1
         doc = xpath.loads(body)
         kept = 0
-        for i in range(1, SCAN + 1):
+        for i in range(1, feed.get("scan", SCAN) + 1):
             title = doc.query("//item[%d]/title" % i)
             if title == None:
                 break
             clean_title = strip_html(title)
+            tag = feed["tag"]
+            if feed.get("aggregator"):
+                # "Headline - Outlet"; its description only repeats the headline
+                source = (doc.query("//item[%d]/source" % i) or "").strip()
+                if not source or source in SKIP_SOURCES:
+                    continue
+                if clean_title.endswith(" - " + source):
+                    clean_title = clean_title[:len(clean_title) - len(source) - 3]
+                if not re.match(r"(?i)\bgreenpoint", clean_title):
+                    continue
+                tag = source_tag(source)
             if not wanted(clean_title, doc.query_all("//item[%d]/category" % i)):
                 continue
             parsed = parse_pub(doc.query("//item[%d]/pubDate" % i) or "")
+            desc = "" if feed.get("aggregator") else strip_html(doc.query("//item[%d]/description" % i) or "")
             items.append({
                 "title": clean_title,
-                "description": pick_summary(clean_title, strip_html(doc.query("//item[%d]/description" % i) or "")),
-                "meta": meta_line(feed["tag"], parsed),
+                "description": pick_summary(clean_title, desc) if desc else "",
+                "meta": meta_line(tag, parsed),
                 "accent": feed["accent"],
                 "ts": parsed.unix if parsed else 0,
             })
@@ -842,9 +887,10 @@ def render_articles(articles):
 
 def main(config):
     if config.bool("sources"):
-        # for the push workflow's mirror: key, kind, live URL
+        # for the push workflow's mirror: key, kind, live URL, and "hourly"
+        # for a source that must not be fetched every push
         for src in FEEDS:
-            print("SOURCE", src["key"], "rss", src["url"])
+            print("SOURCE", src["key"], "rss", src["url"], "hourly" if src.get("hourly") else "")
         for src in [PERMITS, PARKS]:
             print("SOURCE", src["key"], "json", src["url"])
         return render.Root(child = render.Box())

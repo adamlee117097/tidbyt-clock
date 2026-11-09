@@ -35,13 +35,21 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
 
-      # Retried, because one failed download used to cost a whole 5.5h run,
-      # and checked against the release's checksums.txt, because this binary
-      # runs with both devices' tokens.
+      # Cached, so most runs never touch GitHub's release server; retried with
+      # backoff, because one bad download (504s, 11/8-11/9) failed whole runs;
+      # checked against the release checksum, because this binary gets device tokens.
+      - name: Cache pixlet
+        uses: actions/cache@v4
+        with:
+          path: pixlet.tgz
+          key: pixlet-0.34.0-linux-amd64
+
       - name: Install pixlet
         run: |
-          curl -fsSL --retry 5 --retry-all-errors -o pixlet.tgz https://github.com/tidbyt/pixlet/releases/download/v0.34.0/pixlet_0.34.0_linux_amd64.tar.gz
-          echo "5833d0711803dd6374e696a5d02462f766b299df6413486021fb4035dcc54640  pixlet.tgz" | sha256sum -c -
+          if ! echo "5833d0711803dd6374e696a5d02462f766b299df6413486021fb4035dcc54640  pixlet.tgz" | sha256sum -c - 2>/dev/null; then
+            curl -fsSL --retry 8 --retry-all-errors --connect-timeout 20 -o pixlet.tgz https://github.com/tidbyt/pixlet/releases/download/v0.34.0/pixlet_0.34.0_linux_amd64.tar.gz
+            echo "5833d0711803dd6374e696a5d02462f766b299df6413486021fb4035dcc54640  pixlet.tgz" | sha256sum -c -
+          fi
           tar xzf pixlet.tgz pixlet
 
       # One render, pushed to both the shop's Tidbyt and the friend's

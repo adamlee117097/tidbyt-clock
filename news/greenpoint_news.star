@@ -15,11 +15,9 @@ under Greenpoint and under no other neighborhood. That drops the Williamsburg
 openings that took about a fifth of the airtime. Sponsored posts and op-eds
 are dropped too.
 
-Stories older than MAX_AGE_DAYS drop out. Five days, because nobody here
-publishes on weekends: with three (and fewer stories once Williamsburg
-went) the same two headlines looped from Monday afternoon to Tuesday
-morning. If the window still comes up empty, the freshest few are shown
-anyway; each carries an honest "5D AGO".
+Stories older than MAX_AGE_DAYS drop out. Two days (Adam, 11/11: older
+news isn't news). When the window comes up empty the card says
+"No hot gossip left" in place of the news, plus any coming-up event.
 
 The pool rotates by push number (one push per 10 minutes; the workflow
 passes it as slot=), so every story in the pool gets reached and, while the
@@ -111,7 +109,7 @@ ANIMATION_SPEED = 75  # ms per frame; see the docstring before raising it
 FRAME_BUDGET = 15000 // ANIMATION_SPEED
 TZ = "America/New_York"
 BREAKING_SECS = 3600
-MAX_AGE_DAYS = 5
+MAX_AGE_DAYS = 2
 EVENT_DAYS = 7  # how far ahead events are announced
 MULTI_DAY_ROWS = 10  # a permit name with this many rows is a daily run ('Circus': 27 days)
 LINE_PX = 64
@@ -506,13 +504,7 @@ def get_articles(mirror):
                 break
     items = sorted(items, key = lambda a: a["ts"], reverse = True)
     cutoff = time.now().unix - MAX_AGE_DAYS * 86400
-    fresh = [it for it in items if it["ts"] >= cutoff]
-    if fresh:
-        return fresh, read
-
-    # Quiet stretch: nothing inside the window. Show the freshest anyway
-    # rather than "no news" -- each one's meta line says how old it is.
-    return items[:SHOW_PER_CYCLE], read
+    return [it for it in items if it["ts"] >= cutoff], read
 
 def json_rows(body):
     if body == None or not body.lstrip().startswith("["):
@@ -885,6 +877,14 @@ def render_articles(articles):
         elements.append(render.Box(height = 2))
     return elements
 
+NO_GOSSIP = {
+    "title": "No hot gossip left",
+    "description": "Greenpoint is quiet. Check back soon.",
+    "meta": "",
+    "accent": GOLD,
+    "ts": 0,
+}
+
 def main(config):
     if config.bool("sources"):
         # for the push workflow's mirror: key, kind, live URL, and "hourly"
@@ -903,15 +903,17 @@ def main(config):
         # stale -- instead of putting a placeholder on the shop floor.
         fail("no Greenpoint feed could be read")
     events = get_events(mirror)
-    if not news and not events:
-        fail("feeds read, but nothing about Greenpoint in them")
 
     # slot=N (preview only) renders push N's pair
     k = time.now().unix // 600
     slot = config.str("slot", "")
     if slot.isdigit():
         k = int(slot)
-    shown = fit_budget(pick(news, events, k))
+    if news:
+        shown = fit_budget(pick(news, events, k))
+    else:
+        # Quiet stretch: nothing in the window. Say so, then the next event.
+        shown = [NO_GOSSIP] + ([events[k % len(events)]] if events else [])
 
     return render.Root(
         delay = ANIMATION_SPEED,

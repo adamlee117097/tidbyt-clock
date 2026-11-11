@@ -69,6 +69,23 @@ FEEDS = [
 # an aggregator story from one of these is a duplicate (or held)
 SKIP_SOURCES = ["Greenpointers", "Brooklyn Paper", "New York YIMBY", "Greenline", "North Brooklyn News", "Patch"]
 
+# Press-release outlets (Adam, 11/11: block them): wire services, and
+# commercial real-estate sites that run brokers' deal announcements as
+# news ("Marcus & Millichap Arranges Sale..."). Matched as a lowercase
+# piece of the outlet name Google News gives, so "PR Newswire" and
+# "EIN Presswire" variants all count.
+PRESS_RELEASE_SOURCES = [
+    "newswire", "presswire", "business wire", "accesswire", "prweb",
+    "press release", "openpr", "yield pro", "connect cre", "rebusiness",
+]
+
+def is_press_release(source):
+    low = source.lower()
+    for name in PRESS_RELEASE_SOURCES:
+        if name in low:
+            return True
+    return False
+
 # short meta-line names for outlets that show up in the aggregator
 SOURCE_TAGS = {
     "Brooklyn News Service": "BK NEWS",
@@ -481,7 +498,7 @@ def get_articles(mirror):
             if feed.get("aggregator"):
                 # "Headline - Outlet"; its description only repeats the headline
                 source = (doc.query("//item[%d]/source" % i) or "").strip()
-                if not source or source in SKIP_SOURCES:
+                if not source or source in SKIP_SOURCES or is_press_release(source):
                     continue
                 if clean_title.endswith(" - " + source):
                     clean_title = clean_title[:len(clean_title) - len(source) - 3]

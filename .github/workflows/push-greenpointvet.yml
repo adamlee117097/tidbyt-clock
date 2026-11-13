@@ -97,11 +97,18 @@ jobs:
             else
               echo "::warning::render $i FAILED, reusing previous webp"
             fi
+            # 11/13: background pushes left the shop screen showing day-old
+            # cards (closing said "3 DAYS LEFT" on Friday) until a normal push.
+            # So once an hour in the daytime the push is a normal one, which
+            # makes the device take the new image; the rest stay background.
+            bg=--background
+            ny_h=$(TZ=America/New_York date +%-H); ny_m=$(TZ=America/New_York date +%-M)
+            if [ "$ny_h" -ge 7 ] && [ "$ny_h" -le 20 ] && [ "$ny_m" -lt 15 ]; then bg=""; fi  # pushes every 15 min
             if [ -f vet.webp ]; then
               # --background: without it every push jumps the device to this
               # card, restarts its rotation and breaks through night mode.
               # A push has no timeout of its own and once hung 128s.
-              if timeout 90 ./pixlet push --background --api-token "$VET_TOKEN" \
+              if timeout 90 ./pixlet push $bg --api-token "$VET_TOKEN" \
                   --installation-id greenpointvet "$VET_DEVICE" vet.webp; then
                 ok=$((ok + 1)); echo "push $i OK $(date -u +%H:%M)"
               else

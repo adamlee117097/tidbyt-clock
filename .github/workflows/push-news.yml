@@ -94,7 +94,7 @@ jobs:
           }
 
           start=$(date +%s)
-          chained=0; shop_ok=0; vet_ok=0; closing_day=""
+          chained=0; shop_ok=0; vet_ok=0; closing_day=""; closing_fg_day=""
           for i in $(seq 1 33); do
             refresh
             # The push number picks the card's pair (see the star). Passed
@@ -106,17 +106,24 @@ jobs:
             else
               echo "::warning::render $i failed, reusing the previous webp"
             fi
+            # 11/13: background pushes left the shop screen showing day-old
+            # cards (closing said "3 DAYS LEFT" on Friday) until a normal push.
+            # So once an hour in the daytime the push is a normal one, which
+            # makes the device take the new image; the rest stay background.
+            bg=--background
+            ny_h=$(TZ=America/New_York date +%-H); ny_m=$(TZ=America/New_York date +%-M)
+            if [ "$ny_h" -ge 7 ] && [ "$ny_h" -le 20 ] && [ "$ny_m" -lt 10 ]; then bg=""; fi
             if [ -f news.webp ]; then
               # Separate pushes so a failure on one device never skips the
               # other; a push has no timeout of its own and once hung 128s.
               # --background: without it every push jumps the device to this
               # card, restarts its rotation and breaks through night mode.
-              if timeout 90 ./pixlet push --background --api-token "$SHOP_TOKEN" --installation-id news "$SHOP_DEVICE" news.webp; then
+              if timeout 90 ./pixlet push $bg --api-token "$SHOP_TOKEN" --installation-id news "$SHOP_DEVICE" news.webp; then
                 shop_ok=$((shop_ok + 1)); echo "push $i OK $(date -u +%H:%M)"
               else
                 echo "::warning::push $i FAILED"
               fi
-              if timeout 90 ./pixlet push --background --api-token "$VET_TOKEN" --installation-id news "$VET_DEVICE" news.webp; then
+              if timeout 90 ./pixlet push $bg --api-token "$VET_TOKEN" --installation-id news "$VET_DEVICE" news.webp; then
                 vet_ok=$((vet_ok + 1)); echo "friend push $i OK $(date -u +%H:%M)"
               else
                 echo "::warning::friend push $i FAILED"
@@ -128,10 +135,14 @@ jobs:
             # workflow, but GitHub never fired the midnight slot, so it rides
             # this loop: pushed on the first pass and whenever the date turns.
             today=$(TZ=America/New_York date +%F)
-            if [ "$today" != "$closing_day" ]; then
+            # Also pushed once more as a normal push at the day's first
+            # normal slot (7am), so the screen really shows the new count.
+            if [ "$today" != "$closing_day" ] || { [ -z "$bg" ] && [ "$today" != "$closing_fg_day" ]; }; then
+              cbg=--background; [ -z "$bg" ] && cbg=""
               if timeout 60 ./pixlet render closing/closing.star -o closing.webp \
-                  && timeout 90 ./pixlet push --background --api-token "$SHOP_TOKEN" --installation-id closing "$SHOP_DEVICE" closing.webp; then
-                closing_day=$today; echo "closing card pushed for $today"
+                  && timeout 90 ./pixlet push $cbg --api-token "$SHOP_TOKEN" --installation-id closing "$SHOP_DEVICE" closing.webp; then
+                closing_day=$today; [ -z "$cbg" ] && closing_fg_day=$today
+                echo "closing card pushed for $today ${cbg:-(normal push)}"
               else
                 echo "::warning::closing card push $i FAILED, retrying next pass"
               fi

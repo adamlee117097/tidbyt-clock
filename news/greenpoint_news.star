@@ -77,6 +77,9 @@ SKIP_SOURCES = ["Greenpointers", "Brooklyn Paper", "New York YIMBY", "Greenline"
 PRESS_RELEASE_SOURCES = [
     "newswire", "presswire", "business wire", "accesswire", "prweb",
     "press release", "openpr", "yield pro", "connect cre", "rebusiness",
+    # home-sale listings (11/13: "210 Greenpoint Ave Unit 5I" via Realtor.com)
+    "realtor.com", "zillow", "streeteasy", "redfin", "trulia", "compass",
+    "corcoran", "elliman", "homes.com", "apartments.com", "renthop",
 ]
 
 def is_press_release(source):

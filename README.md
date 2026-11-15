@@ -6,7 +6,7 @@ palette, pushed standalone by GitHub Actions — no home machine involved.
 | App | Preview | What it shows |
 |---|---|---|
 | **news** | — | Greenpoint-only headlines (Greenpointers, Brooklyn Paper, NY YIMBY and Greenline RSS; Williamsburg and sponsored posts filtered out) plus what's coming up in the neighborhood's parks and streets (NYC permitted events and NYC Parks listings), vertical scroll, breaking-news state |
-| **closing** | ![Closing preview](closing/preview.gif) | Kaleidoscope's goodbye: the shop's "KALEIDOSCOPE / COFFEE" wordmark with a cream glint sweeping across it, then "OUR LAST DAY / SUN NOV 15" with a live days-left countdown, then "THANK YOU GREENPOINT" with a beating heart. On the last day it reads "TODAY IS OUR LAST DAY"; from the day after, just the wordmark and the thank you. Pushed by the news loop when the New York date turns. |
+| **closing** | ![Closing preview](closing/preview.gif) | Kaleidoscope's goodbye: the shop's "KALEIDOSCOPE / COFFEE" wordmark with a cream glint sweeping across it, then "OUR LAST DAY / SUN NOV 15" with a live days-left countdown, then "THANK YOU GREENPOINT" with a beating heart. The shop closed early on the last day, so from 11/15 on it is just the wordmark and the thank you. Pushed by the news loop when the New York date turns. |
 | **weather** | ![Weather preview](weather/preview.gif) | Current temp, animated pixel-art conditions, daily high/low, precip chance (NWS + Open-Meteo blend, no API keys) |
 | **clock** | ![Clock preview](clock/preview.gif) | Gold digits, blinking colon, date, seconds bar *(experimental — see note)* |
 

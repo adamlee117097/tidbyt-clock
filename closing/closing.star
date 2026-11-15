@@ -144,7 +144,9 @@ def main(config):
     wordmark = name_page(WORDMARK)
     frames = [wordmark] * SHINE_AT + [name_page(src) for src in SHINE]
     frames.extend([wordmark] * (WORD_FRAMES - len(frames)))
-    if days >= 0:
+    # the shop closed early on the last day itself (11/15), so the date page
+    # drops out on the day, not the day after
+    if days > 0:
         frames.extend([date_page(days)] * PAGE_FRAMES)
     # the heart beats twice a second: big for 6 frames, small for 4
     big = thanks_page(HEARTS[0])

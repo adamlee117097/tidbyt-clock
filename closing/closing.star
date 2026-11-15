@@ -23,6 +23,10 @@ WORD_FRAMES = 80
 SHINE_AT = 16      # the name sits still 0.8s before the glint crosses it
 PAGE_FRAMES = 90
 TZ = "America/New_York"
+
+# tom-thumb draws N as a solid block that reads as M, so the closed page
+# draws its N's itself, 4px wide, the same glyph the news card uses
+N_GLYPH = ["#..#", "##.#", "#.##", "#..#", "#..#"]
 LAST_DAY = "2026-11-15"
 
 CORAL = "#F25A3C"
@@ -79,6 +83,25 @@ def days_left(config):
     # +12h absorbs the 23h/25h days around a DST change
     return (last.unix - start.unix + 43200) // 86400
 
+def n_glyph(color):
+    rows = []
+    for r in N_GLYPH:
+        cells = [render.Box(width = 1, height = 1, color = color) if c == "#" else render.Box(width = 1, height = 1) for c in r.elems()]
+        rows.append(render.Row(children = cells + [render.Box(width = 1, height = 1)]))
+    rows.append(render.Box(width = 5, height = 1))  # tom-thumb is 6 tall
+    return render.Column(children = rows)
+
+def small_text(content, color):
+    """tom-thumb text with every N drawn by n_glyph()."""
+    children = []
+    parts = content.split("N")
+    for i in range(len(parts)):
+        if i > 0:
+            children.append(n_glyph(color))
+        if parts[i]:
+            children.append(render.Text(content = parts[i], font = "tom-thumb", color = color))
+    return render.Row(children = children)
+
 def text(content, font, color, bold):
     if not bold:
         return render.Text(content = content, font = font, color = color)
@@ -129,6 +152,13 @@ def date_page(days):
         line(left, "tom-thumb", CREAM),
     ])
 
+def closed_page():
+    return page([
+        line("WE ARE", "tom-thumb", CORAL),
+        line("CLOSED", "6x13", GOLD, bold = True),
+        render.Row(expanded = True, main_align = "center", children = [small_text("PERMANENTLY", CREAM)]),
+    ])
+
 def thanks_page(heart):
     return page([
         line("THANK YOU", "6x13", CREAM, bold = True),
@@ -148,6 +178,8 @@ def main(config):
     # drops out on the day, not the day after
     if days > 0:
         frames.extend([date_page(days)] * PAGE_FRAMES)
+    else:
+        frames.extend([closed_page()] * PAGE_FRAMES)
     # the heart beats twice a second: big for 6 frames, small for 4
     big = thanks_page(HEARTS[0])
     small = thanks_page(HEARTS[1])
